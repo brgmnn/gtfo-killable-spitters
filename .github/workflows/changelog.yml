@@ -1,0 +1,31 @@
+name: Generate CHANGELOG.md
+
+on:
+  workflow_dispatch:
+
+jobs:
+  changelog:
+    name: Generate CHANGELOG.md
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Generate CHANGELOG.md
+        run: |
+          ./generate-changelog.sh
+        env:
+          TZ: America/Los_Angeles
+      - name: Set Git Authors
+        run: |
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}
+          git config user.email brgmnn@users.noreply.github.com
+          git config user.name "Daniel Bergmann"
+      - name: Commit CHANGELOG
+        run: |
+          git add CHANGELOG.md
+          git commit -m "Update CHANGELOG.md"
+          git push origin main

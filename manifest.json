@@ -1,0 +1,10 @@
+{
+  "name": "KillableSpitters",
+  "version_number": "0.1.0",
+  "website_url": "https://github.com/brgmnn/gtfo-killable-spitters",
+  "description": "Makes GTFO's infection spitters killable. Shoot them down or C-foam them; deaths are host-authoritative and synced to all players.",
+  "dependencies": [
+    "BepInEx-BepInExPack_GTFO-3.2.2",
+    "Amorously-AmorLib-1.2.2"
+  ]
+}

@@ -1,0 +1,46 @@
+name: Release (Thunderstore)
+
+on:
+  workflow_dispatch:
+
+env:
+  TCLI_VERSION: 0.2.1
+
+jobs:
+  release:
+    name: Upload to Thunderstore
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Thunderstore CLI
+        run: |
+          gh release download \
+            -R thunderstore-io/thunderstore-cli \
+            $TCLI_VERSION \
+            -p "*linux*" \
+            -D /tmp/
+
+          tar -xzf /tmp/tcli-*-linux*.tar.gz -C /tmp/
+          mv /tmp/tcli-$TCLI_VERSION-linux-x64/tcli /usr/local/bin/tcli
+
+      - name: Determine tag and version
+        id: latest
+        run: |
+          raw="$(gh release view --json tagName --jq '.tagName')"
+          echo "tag=$raw" >> "$GITHUB_OUTPUT"
+          echo "version=$(echo $raw | sed 's/^v//')" >> "$GITHUB_OUTPUT"
+
+      - name: Download release asset
+        run: |
+          gh release download \
+            ${{ steps.latest.outputs.tag }} \
+            -p KillableSpitters_${{ steps.latest.outputs.version }}.zip
+
+      - name: Upload to Thunderstore
+        run: |
+          tcli publish \
+            --token ${{ secrets.THUNDERSTORE_TOKEN }} \
+            --file KillableSpitters_${{ steps.latest.outputs.version }}.zip

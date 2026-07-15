@@ -1,0 +1,15 @@
+/.vs
+/KillableSpitters/obj
+/build
+/deps
+
+# Jetbrains
+/.idea
+*.DotSettings.user
+
+**/bin
+**/obj
+
+# MacOS and zip files
+/*.zip
+.DS_Store

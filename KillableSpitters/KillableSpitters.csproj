@@ -1,0 +1,84 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <DebugType>None</DebugType>
+    <AssemblyName>$(SolutionName)</AssemblyName>
+    <RootNamespace>$(SolutionName)</RootNamespace>
+
+    <Deps>$(SolutionDir)\deps</Deps>
+    <Interop>$(SolutionDir)\KillableSpitters\interop</Interop>
+    <Plugins>$(SolutionDir)\KillableSpitters\plugins</Plugins>
+    <BepInEx>$(Deps)\BepInEx-BepInExPack_GTFO\BepInExPack_GTFO\BepInEx</BepInEx>
+    <OutputPath>$(SolutionDir)\build</OutputPath>
+
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(Debug) != 'false'">
+    <BepInEx_Debug>$(AppData)\r2modmanPlus-local\GTFO\profiles\modding-killable-spitters\BepInEx</BepInEx_Debug>
+    <OutputPath_Debug>$(BepInEx_Debug)\plugins\the_tavern-$(SolutionName)</OutputPath_Debug>
+
+    <Gale_Debug>$(AppData)\com.kesomannen.gale\gtfo\profiles\modding-killable-spitters\BepInEx</Gale_Debug>
+    <GalePlugin_Debug>$(Gale_Debug)\plugins\the_tavern-$(SolutionName)</GalePlugin_Debug>
+
+    <DefineConstants>DEBUG</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- BepInEx -->
+    <Reference Include="$(BepInEx)\core\BepInEx.Core.dll" Private="false" />
+    <Reference Include="$(BepInEx)\core\BepInEx.Unity.IL2CPP.dll" Private="false" />
+
+    <!-- BepInEx Core-->
+    <Reference Include="$(BepInEx)\core\0Harmony.dll" Private="false" />
+    <Reference Include="$(BepInEx)\core\Il2CppInterop.Common.dll" Private="false" />
+    <Reference Include="$(BepInEx)\core\Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(BepInEx)\core\MonoMod.RuntimeDetour.dll" Private="false" />
+
+    <!-- BepInEx Interop -->
+    <Reference Include="$(Interop)\*.dll" Private="false" />
+    <Reference Remove="$(Interop)\netstandard.dll" />
+    <Reference Remove="$(Interop)\Newtonsoft.Json.dll" />
+
+    <!-- Thunderstore Plugins -->
+    <Reference Include="$(Plugins)\GTFO-API.dll" />
+    <Reference Include="$(Plugins)\AmorLib.dll" />
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Delete Files="$(OutputPath)$(AssemblyName).deps.json" />
+
+    <Copy SourceFiles="$(SolutionDir)\manifest.json" DestinationFolder="$(OutputPath)" />
+    <Copy SourceFiles="$(SolutionDir)\icon.png" DestinationFolder="$(OutputPath)" />
+    <Copy SourceFiles="$(SolutionDir)\CHANGELOG.md" DestinationFolder="$(OutputPath)" />
+    <Copy SourceFiles="$(SolutionDir)\docs\README_THUNDERSTORE.md" DestinationFolder="$(OutputPath)" />
+    <Move SourceFiles="$(OutputPath)\README_THUNDERSTORE.md" DestinationFiles="$(OutputPath)\README.md" />
+
+    <!-- Define DebugCopyItems AFTER all files are in OutputPath -->
+    <ItemGroup>
+      <DebugCopyItems Include="$(OutputPath)\**\*" />
+    </ItemGroup>
+
+    <!-- R2ModMan debug modding profile - preserve directory structure -->
+    <Copy Condition="$(Debug) != 'false' And $(OS) == 'Windows_NT'"
+          SourceFiles="@(DebugCopyItems)"
+          DestinationFiles="@(DebugCopyItems->'$(OutputPath_Debug)\%(RecursiveDir)%(Filename)%(Extension)')" />
+
+    <!-- Gale debug modding profile - preserve directory structure -->
+    <Copy Condition="$(Debug) != 'false' And $(OS) == 'Windows_NT'"
+          SourceFiles="@(DebugCopyItems)"
+          DestinationFiles="@(DebugCopyItems->'$(GalePlugin_Debug)\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <Target Name="PostClean" AfterTargets="Clean">
+    <RemoveDir Directories="$(OutputPath)" />
+    <RemoveDir Condition="$(Debug) != 'false' And $(OS) == 'Windows_NT'"
+               Directories="$(OutputPath_Debug)" />
+    <RemoveDir Condition="$(Debug) != 'false' And $(OS) == 'Windows_NT'"
+               Directories="$(GalePlugin_Debug)" />
+  </Target>
+</Project>

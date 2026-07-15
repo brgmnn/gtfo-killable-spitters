@@ -1,0 +1,61 @@
+name: Release (Github Artifacts)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version"
+        required: false
+        default: ""
+
+jobs:
+  attach-assets:
+    name: Attach assets to release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Determine version
+        id: get-version
+        run: |
+          if [ -z "${{ github.event.inputs.version }}" ]; then
+            echo "No version specified, using latest draft"
+            echo "release=$(gh release list | head -n 1 | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get build run
+        id: get-build
+        run: |
+          echo "build_id=$(gh run list -w 'Build .NET' --limit 1 --status completed --branch main --json databaseId -q '.[].databaseId')" >> "$GITHUB_OUTPUT"
+
+      - name: Download artifacts
+        run: |
+          artifacts=$(gh api /repos/brgmnn/gtfo-killable-spitters/actions/runs/${{ steps.get-build.outputs.build_id }}/artifacts | jq -c '.artifacts[]')
+
+          # Create temporary directory for handling artifacts
+          mkdir -p ${{ github.workspace }}/_artifacts && cd ${{ github.workspace }}/_artifacts
+
+          for artifact in $artifacts; do
+            name="$(echo $artifact | jq -r '.name').zip"
+            url=$(echo $artifact | jq -r '.archive_download_url')
+
+            echo "Downloading $name -> $url"
+
+            gh api $url > $name
+          done
+
+      - name: Attach artifacts on release
+        run: |
+          gh release upload ${{ steps.get-version.outputs.release }} _artifacts/*.zip
+
+      - name: Debug
+        if: always()
+        run: |
+          echo "${{ steps.get-version.outputs.release }}"
+          echo "${{ steps.get-build.outputs.build_id }}"
+          ls -ls
+          ls -ls _artifacts
