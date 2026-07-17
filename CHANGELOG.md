@@ -3,6 +3,17 @@
 See more at https://github.com/brgmnn/gtfo-killable-spitters
 
 
+## [v0.5.0](https://github.com/brgmnn/gtfo-killable-spitters/releases/tag/v0.5.0) — July 16, 2026
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+### Changes
+
+* Fix: Remove GTFO-API from being bundled and rely on version from BepInEx
+
+**Full Changelog**: https://github.com/brgmnn/gtfo-killable-spitters/compare/v0.4.0...v0.5.0
+
+
 ## [v0.4.0](https://github.com/brgmnn/gtfo-killable-spitters/releases/tag/v0.4.0) — July 16, 2026
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
