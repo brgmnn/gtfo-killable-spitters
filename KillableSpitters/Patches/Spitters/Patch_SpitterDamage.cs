@@ -133,8 +133,7 @@ internal static class Patch_SpitterDamage
     /// paces the pops to one per wind-up cycle, and the m_isExploding skip
     /// below also avoids re-broadcasting the vanilla explode packet for every
     /// bullet landing mid-wind-up. Pops are triggered on the shooter's client
-    /// (vanilla design), so the LOCAL feature toggle gates the cooldown
-    /// bypass; disabled peers keep vanilla behavior.
+    /// (vanilla design).
     /// </summary>
     [HarmonyPatch(typeof(InfectionSpitter), nameof(InfectionSpitter.OnIncomingDamage))]
     [HarmonyPrefix]
@@ -145,9 +144,6 @@ internal static class Patch_SpitterDamage
             // Dead/dying spitters must not trigger further explosions.
             if (SpitterKillManager.IsDeadOrDying(__instance.m_spitterIndex))
                 return false;
-
-            if (!Plugin.Config_KillableSpitters)
-                return true;
 
             // Pop already winding up — nothing to add, don't resend.
             if (__instance.m_isExploding)

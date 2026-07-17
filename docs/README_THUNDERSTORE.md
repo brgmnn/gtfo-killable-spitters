@@ -17,13 +17,12 @@ teammates, and lobbies with more than 4 players are handled correctly.
 ## Configuration
 
 Config file: `BepInEx/config/the_tavern-KillableSpitters.cfg` (section
-`Enemies`)
+`General`)
 
 | Setting                  | Default | Description |
 | ------------------------ | ------- | ----------- |
-| `KillableSpitters`       | `true`  | Allow spitters to be shot and killed with bullets. The lobby HOST's setting decides; clients mirror the host's spitter deaths. |
 | `SpitterHealth`          | `30.0`  | Bullet health pool. Only the host's value applies. |
-| `SpitterGlueKillSeconds` | `5.0`   | Seconds after being C-foamed before a spitter dies. `0` or less keeps the vanilla freeze-only behavior. Only the host's value applies; requires `KillableSpitters`. |
+| `SpitterGlueKillSeconds` | `5.0`   | Seconds after being C-foamed before a spitter dies. `0` or less keeps the vanilla freeze-only behavior. Only the host's value applies. |
 
 ## Compatibility
 

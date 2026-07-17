@@ -41,12 +41,12 @@ namespace KillableSpitters.Patches.Spitters;
 ///   lobbies. State diffs are applied in both directions: 0→1 kills, 1→0
 ///   revives (checkpoint recall can restore a pre-death snapshot).
 ///
-/// Config semantics (host-authoritative): only the HOST's KillableSpitters /
-/// SpitterHealth values matter. Damage accumulation and the death decision run
-/// exclusively on the host and are gated by the host's config. Clients always
-/// send damage reports (the host discards them when disabled), always apply
-/// replicated death states regardless of their local toggle, and the
-/// dead-guards always apply so dead spitters stay dead everywhere.
+/// Config semantics (host-authoritative): only the HOST's SpitterHealth /
+/// SpitterGlueKillSeconds values matter. Damage accumulation and the death
+/// decision run exclusively on the host. Clients always send damage reports,
+/// always apply replicated death states, and the dead-guards always apply so
+/// dead spitters stay dead everywhere. The feature itself has no on/off
+/// toggle — installing the mod is the opt-in.
 ///
 /// Death sequence ("pops on every hit + death pop"): Patch_SpitterDamage
 /// removes the vanilla 5s damage-pop cooldown, so sustained fire pops the
@@ -235,8 +235,7 @@ public static class SpitterKillManager
 
         if (SNet.IsMaster)
         {
-            if (Plugin.Config_KillableSpitters)
-                AccumulateDamage(index, Math.Min(dam, MaxReportedDamagePerHit));
+            AccumulateDamage(index, Math.Min(dam, MaxReportedDamagePerHit));
             return;
         }
 
@@ -414,8 +413,7 @@ public static class SpitterKillManager
 
         try
         {
-            if (!SNet.IsMaster || !Plugin.Config_KillableSpitters
-                || Plugin.Config_SpitterGlueKillSeconds <= 0f)
+            if (!SNet.IsMaster || Plugin.Config_SpitterGlueKillSeconds <= 0f)
                 return;
 
             var index = spitter.m_spitterIndex;
@@ -517,7 +515,7 @@ public static class SpitterKillManager
     /// </summary>
     private static void OnDamageEventReceived(ulong senderPlayer, SpitterDamageEvent data)
     {
-        if (_broken || !SNet.IsMaster || !Plugin.Config_KillableSpitters)
+        if (_broken || !SNet.IsMaster)
             return;
 
         try
@@ -778,10 +776,11 @@ public static class SpitterKillManager
         }
         else
         {
-            // (d) No pop available — rare fallback (e.g. a client with the
-            // feature toggled off landed the killing blow under the vanilla
-            // cooldown): trigger the death pop directly. Matches vanilla
-            // SendSlowExplode semantics for hidden spitters.
+            // (d) No pop available — rare fallback (e.g. the killing hit's
+            // vanilla explode packet hasn't arrived on this peer yet: pops
+            // and death states travel on different channels): trigger the
+            // death pop directly. Matches vanilla SendSlowExplode semantics
+            // for hidden spitters.
             spitter.DoExplode(
                 spitter.m_currentState == InfectionSpitter.eSpitterState.Retracted ? 0.5f : 1f);
             _dyingFinalizeAt[index] = float.MaxValue;
@@ -1002,7 +1001,7 @@ public static class SpitterKillManager
             }
 
             Plugin.Logger.LogDebug(
-                $"[SpitterKill] Ready ({SHARD_COUNT} shards, killable={Plugin.Config_KillableSpitters}, " +
+                $"[SpitterKill] Ready ({SHARD_COUNT} shards, " +
                 $"health={Plugin.Config_SpitterHealth}, IsMaster={SNet.IsMaster})");
         }
         catch (Exception ex)
