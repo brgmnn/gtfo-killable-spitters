@@ -71,6 +71,10 @@ public class Plugin : BasePlugin
 
         GameDataAPI.OnGameDataInitialized += SpitterKillManager.Setup;
 
+        // Verify the ICF-fold assumption behind the bullet damage tap
+        // (see Patch_SpitterDamage class header). Log-only.
+        Patch_SpitterDamage.LogDamageForwarderFoldState();
+
         // Apply patches
         var harmony = new Harmony(Name);
         harmony.PatchAll();

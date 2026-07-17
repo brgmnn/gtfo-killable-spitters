@@ -18,7 +18,9 @@ namespace KillableSpitters.Patches.Spitters;
 /// into InfectionSpitter.OnIncomingDamage which just pops the spitter (5s
 /// cooldown) — it can never die (decompile: InfectionSpitter.cs:337-347,
 /// InfectionSpitterDamage.cs:25-36). This manager adds a host-authoritative
-/// health pool per spitter. Bullets report damage to the host; when a pool
+/// health pool per spitter, fed by a BulletWeapon.BulletHit postfix (the
+/// receiver methods themselves are ICF-folded and must never be patched —
+/// see Patch_SpitterDamage). Bullets report damage to the host; when a pool
 /// hits zero the host marks the spitter dead in a replicated bitmask, every
 /// peer plays one final explosion, and the spitter is permanently deactivated.
 ///
@@ -29,8 +31,8 @@ namespace KillableSpitters.Patches.Spitters;
 ///   an entry would shift every later index).
 /// - Damage reports: GTFO-API NetworkAPI event sent by the shooting client
 ///   directly to SNet.Master on a reliable channel. Host shots skip the
-///   network. Sentry bullets ride the same BulletDamage path and only deal
-///   damage on the host, so they accumulate directly too.
+///   network. Sentry bullets ride the same BulletWeapon.BulletHit funnel and
+///   only deal damage on the host, so they accumulate directly too.
 /// - Death state: SHARD_COUNT AmorLib StateReplicators (fixed IDs, always
 ///   created at OnBuildDone on every peer — no count negotiation), each
 ///   holding a dead-bitmask shard. AmorLib handles host broadcast, drop-in
@@ -208,7 +210,7 @@ public static class SpitterKillManager
         => _dead.Count != 0 && _dead.Contains(spitterIndex);
 
     /// <summary>
-    /// Called from the InfectionSpitterDamage.BulletDamage prefix with the
+    /// Called from the BulletWeapon.BulletHit postfix with the recomputed
     /// final (post-falloff) bullet damage. Host accumulates directly; clients
     /// report to the host on a reliable channel.
     /// </summary>
