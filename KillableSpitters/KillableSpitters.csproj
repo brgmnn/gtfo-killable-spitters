@@ -48,7 +48,7 @@
     <!-- GTFO-API is bundled inside the package; AmorLib is a Thunderstore
          dependency and must NOT be copied into the zip (bundling it gets the
          package rejected), so it is compile-time only (Private="false"). -->
-    <Reference Include="$(Plugins)\GTFO-API.dll" />
+    <Reference Include="$(Plugins)\GTFO-API.dll" Private="false" />
     <Reference Include="$(Plugins)\AmorLib.dll" Private="false" />
   </ItemGroup>
 
