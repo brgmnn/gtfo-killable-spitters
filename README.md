@@ -13,10 +13,6 @@ Install from Thunderstore as `the_tavern-KillableSpitters` using r2modman or
 Gale. Dependencies (installed automatically): `BepInEx-BepInExPack_GTFO` and
 `Amorously-AmorLib`. GTFO-API is bundled inside the package.
 
-> [!WARNING]
-> Do not run this mod alongside **AutogenRundown** (v1.0.6 or later). Autogen
-> already includes killable spitters; running both double-applies the patches.
-
 ## Configuration
 
 Config file: `BepInEx/config/the_tavern-KillableSpitters.cfg`
