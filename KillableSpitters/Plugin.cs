@@ -44,7 +44,7 @@ public class Plugin : BasePlugin
 
         var spitterGlueKillSeconds = Config.Bind(
             new ConfigDefinition("General", "SpitterGlueKillSeconds"),
-            5.0f,
+            0.7f,
             new ConfigDescription("Seconds after being C-foamed before a spitter dies (with the " +
                                   "full death explosion). 0 or less keeps the vanilla freeze-only " +
                                   "behavior. Values beyond the vanilla 240s freeze fire after the " +

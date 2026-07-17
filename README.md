@@ -24,7 +24,7 @@ Config file: `BepInEx/config/the_tavern-KillableSpitters.cfg`
 | Setting (section `General`)  | Default | Description |
 | ---------------------------- | ------- | ----------- |
 | `SpitterHealth`              | `30.0`  | Bullet health pool for killable spitters. Only the host's value applies. |
-| `SpitterGlueKillSeconds`     | `5.0`   | Seconds after being C-foamed before a spitter dies. `0` or less keeps the vanilla freeze-only behavior. Only the host's value applies. |
+| `SpitterGlueKillSeconds`     | `0.7`   | Seconds after being C-foamed before a spitter dies. `0` or less keeps the vanilla freeze-only behavior. Only the host's value applies. |
 
 ## Development
 

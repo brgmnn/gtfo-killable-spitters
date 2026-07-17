@@ -22,15 +22,7 @@ Config file: `BepInEx/config/the_tavern-KillableSpitters.cfg` (section
 | Setting                  | Default | Description |
 | ------------------------ | ------- | ----------- |
 | `SpitterHealth`          | `30.0`  | Bullet health pool. Only the host's value applies. |
-| `SpitterGlueKillSeconds` | `5.0`   | Seconds after being C-foamed before a spitter dies. `0` or less keeps the vanilla freeze-only behavior. Only the host's value applies. |
-
-## Compatibility
-
-> ⚠️ **Do not run alongside AutogenRundown v1.0.6+** — Autogen already includes
-> killable spitters and running both mods double-applies the patches.
-
-GTFO-API is bundled inside this package; AmorLib and BepInExPack_GTFO are
-installed as Thunderstore dependencies.
+| `SpitterGlueKillSeconds` | `0.7`   | Seconds after being C-foamed before a spitter dies. `0` or less keeps the vanilla freeze-only behavior. Only the host's value applies. |
 
 ## Links
 
