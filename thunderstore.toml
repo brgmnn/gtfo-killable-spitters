@@ -5,7 +5,7 @@ schemaVersion = "0.0.1"
 namespace = "the_tavern"
 name = "KillableSpitters"
 versionNumber = "0.1.0"
-description = "Makes GTFO's infection spitters killable. Shoot them down or C-foam them; deaths are host-authoritative and synced to all players."
+description = "Spitters can now be killed. Shoot them down or C-foam them. Deaths are host-authoritative and synced to all players."
 websiteUrl = "https://github.com/brgmnn/gtfo-killable-spitters"
 containsNsfwContent = false
 
