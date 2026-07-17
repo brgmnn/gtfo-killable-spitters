@@ -14,7 +14,7 @@ namespace KillableSpitters;
 [BepInDependency("Amor.AmorLib")]
 public class Plugin : BasePlugin
 {
-    public const string Version = "0.1.0";
+    public const string Version = "0.3.0";
 
     public const string Name = "the_tavern-KillableSpitters";
 

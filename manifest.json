@@ -1,6 +1,6 @@
 {
   "name": "KillableSpitters",
-  "version_number": "0.1.0",
+  "version_number": "0.3.0",
   "website_url": "https://github.com/brgmnn/gtfo-killable-spitters",
   "description": "Spitters can now be killed. Shoot them down or C-foam them. Deaths are host-authoritative and synced to all players.",
   "dependencies": [
