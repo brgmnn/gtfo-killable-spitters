@@ -21,8 +21,9 @@ public class Plugin : BasePlugin
     public static ManualLogSource Logger { get; private set; } = new("KillableSpitters");
 
     /// <summary>
-    /// Bullet health pool for killable spitters. Host-authoritative: in
-    /// multiplayer only the lobby host's value matters (see SpitterKillManager).
+    /// Health pool for killable spitters (any damage type drains it).
+    /// Host-authoritative: in multiplayer only the lobby host's value matters
+    /// (see SpitterKillManager).
     /// </summary>
     public static float Config_SpitterHealth { get; set; }
 
@@ -39,8 +40,8 @@ public class Plugin : BasePlugin
         var spitterHealth = Config.Bind(
             new ConfigDefinition("General", "SpitterHealth"),
             30.0f,
-            new ConfigDescription("Bullet health pool for killable spitters. Only the lobby " +
-                                  "host's value applies."));
+            new ConfigDescription("Health pool for killable spitters (drained by any damage " +
+                                  "type). Only the lobby host's value applies."));
 
         var spitterGlueKillSeconds = Config.Bind(
             new ConfigDefinition("General", "SpitterGlueKillSeconds"),

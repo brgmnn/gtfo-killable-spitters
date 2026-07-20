@@ -2,11 +2,12 @@
 
 Makes GTFO's infection spitters killable.
 
-- **Shoot them**: spitters have a bullet health pool (default 30) and pop with
-  a full death explosion and gib burst when it runs out. They flash and glow
-  hotter as they take damage.
+- **Damage them**: spitters have a health pool (default 30) drained by any
+  damage — bullets, melee, explosives, or custom weapons — and pop with a full
+  death explosion and gib burst when it runs out. They flash and glow hotter as
+  they take damage.
 - **C-foam them**: a foamed spitter dies after a configurable delay
-  (default 5 seconds).
+  (default 0.7 seconds).
 - **Synced**: deaths are decided by the lobby host and replicated to every
   player, including late joiners. All players should install the mod; the
   host's settings decide the behavior.
@@ -21,7 +22,7 @@ Config file: `BepInEx/config/the_tavern-KillableSpitters.cfg` (section
 
 | Setting                  | Default | Description |
 | ------------------------ | ------- | ----------- |
-| `SpitterHealth`          | `30.0`  | Bullet health pool. Only the host's value applies. |
+| `SpitterHealth`          | `30.0`  | Health pool (drained by any damage type). Only the host's value applies. |
 | `SpitterGlueKillSeconds` | `0.7`   | Seconds after being C-foamed before a spitter dies. `0` or less keeps the vanilla freeze-only behavior. Only the host's value applies. |
 
 ## Links

@@ -7,31 +7,33 @@ using SNetwork;
 namespace KillableSpitters.Patches.Spitters;
 
 /// <summary>
-/// Makes InfectionSpitters killable with bullets. Owns all killable-spitter
+/// Makes InfectionSpitters killable. Owns all killable-spitter
 /// state; the Harmony taps/guards live in Patch_SpitterDamage, the
 /// dead-spitter ManagerUpdate gate lives in Fix_SpitterBotAggro, and the
 /// damage-state visuals (glow ramp, tinted pops, red death pop) live in
 /// SpitterVisuals, driven from this manager's kill flow plus a host→all
 /// health-fraction broadcast (HealthEventName).
 ///
-/// Vanilla spitters have no health: InfectionSpitterDamage.BulletDamage funnels
-/// into InfectionSpitter.OnIncomingDamage which just pops the spitter (5s
-/// cooldown) — it can never die (decompile: InfectionSpitter.cs:337-347,
-/// InfectionSpitterDamage.cs:25-36). This manager adds a host-authoritative
-/// health pool per spitter, fed by a BulletWeapon.BulletHit postfix (the
-/// receiver methods themselves are ICF-folded and must never be patched —
-/// see Patch_SpitterDamage). Bullets report damage to the host; when a pool
-/// hits zero the host marks the spitter dead in a replicated bitmask, every
-/// peer plays one final explosion, and the spitter is permanently deactivated.
+/// Vanilla spitters have no health: every damage type funnels through the four
+/// InfectionSpitterDamage forwarders into InfectionSpitter.OnIncomingDamage,
+/// which just pops the spitter (5s cooldown) and discards dam — it can never
+/// die (decompile: InfectionSpitter.cs:337-347, InfectionSpitterDamage.cs:25-77).
+/// This manager adds a host-authoritative health pool per spitter, fed by the
+/// InfectionSpitter.OnIncomingDamage prefix (the ICF-folded forwarders
+/// themselves must never be patched — see Patch_SpitterDamage). All damage —
+/// bullets, melee, fire, explosion, and custom-weapon mods calling IDamageable
+/// directly — reports dam to the host; when a pool hits zero the host marks the
+/// spitter dead in a replicated bitmask, every peer plays one final explosion,
+/// and the spitter is permanently deactivated.
 ///
 /// Network design:
 /// - Identity: InfectionSpitter.m_spitterIndex, assigned in registration order
 ///   during deterministic seeded level-gen — identical on every peer. Dead
 ///   spitters are deactivated but NEVER removed from s_allSpitters (removing
 ///   an entry would shift every later index).
-/// - Damage reports: GTFO-API NetworkAPI event sent by the shooting client
-///   directly to SNet.Master on a reliable channel. Host shots skip the
-///   network. Sentry bullets ride the same BulletWeapon.BulletHit funnel and
+/// - Damage reports: GTFO-API NetworkAPI event sent by the client that dealt
+///   the damage directly to SNet.Master on a reliable channel (OnIncomingDamage
+///   fires only on that client). Host hits skip the network. Sentry bullets
 ///   only deal damage on the host, so they accumulate directly too.
 /// - Death state: SHARD_COUNT AmorLib StateReplicators (fixed IDs, always
 ///   created at OnBuildDone on every peer — no count negotiation), each
@@ -107,7 +109,9 @@ public static class SpitterKillManager
     private const float PopAdoptWindowSeconds = 1.5f;
 
     /// <summary>Host-side clamp on a single reported hit (anti-grief / garbage
-    /// data guard; the strongest sane bullet hits are well below this).</summary>
+    /// data guard). A big explosion or charged melee blow can exceed this and
+    /// still one-shot a default-health spitter — the clamp only caps the pool
+    /// drain per hit, it doesn't stop a kill.</summary>
     private const float MaxReportedDamagePerHit = 100f;
 
     /// <summary>Permanent local kill-switch: flips on any unexpected exception,
@@ -210,11 +214,12 @@ public static class SpitterKillManager
         => _dead.Count != 0 && _dead.Contains(spitterIndex);
 
     /// <summary>
-    /// Called from the BulletWeapon.BulletHit postfix with the recomputed
-    /// final (post-falloff) bullet damage. Host accumulates directly; clients
-    /// report to the host on a reliable channel.
+    /// Called from the InfectionSpitter.OnIncomingDamage prefix with the final
+    /// damage the game passed the spitter (any damage type — already
+    /// post-falloff for bullets). Host accumulates directly; clients report to
+    /// the host on a reliable channel.
     /// </summary>
-    public static void ReportBulletDamage(InfectionSpitter spitter, float dam)
+    public static void ReportDamage(InfectionSpitter spitter, float dam)
     {
         if (_broken || spitter == null)
             return;

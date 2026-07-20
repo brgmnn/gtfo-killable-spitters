@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Gear;
 using HarmonyLib;
 
 namespace KillableSpitters.Patches.Spitters;
@@ -11,23 +10,24 @@ namespace KillableSpitters.Patches.Spitters;
 /// to vanilla behavior on any error (and SpitterKillManager.Break permanently
 /// reverts to vanilla after an unexpected exception).
 ///
-/// Damage-type routing (user decision: bullets only):
-/// - Bullets: tapped at BulletWeapon.BulletHit (Post_BulletHit below), the
-///   single funnel for every player-side bullet damage path — main weapons
-///   incl. piercing (decompile Gear/BulletWeapon.cs:425,442), shotguns
-///   (Gear/Shotgun.cs:55, Gear/ShotgunSynced.cs:56), synced/bot weapons
-///   (Gear/BulletWeaponSynced.cs:92) and sentries
-///   (SentryGunInstance_Firing_Bullets.cs:257,290 — host-only damage). The
-///   only generic IDamageable.BulletDamage dispatch in the game is
-///   BulletWeapon.cs:544, so nothing bypasses this tap. Shotguns report once
-///   per pellet.
-/// - Melee/explosion/fire: untouched — they still pop the spitter via the
-///   vanilla OnIncomingDamage path (prefixed below) but deal no health
-///   damage. OnIncomingDamage funnels all damage types with no type
-///   information, so it cannot serve as a bullets-only tap.
+/// Damage tap (all damage counts): every damage type — bullets, melee, fire,
+/// explosion, and custom-weapon mods that invoke IDamageable directly (e.g. a
+/// bow calling InfectionSpitterDamage.BulletDamage itself) — funnels through
+/// InfectionSpitter.OnIncomingDamage(dam), so Pre_OnIncomingDamage (below)
+/// reports dam to the host health pool. For real weapons dam is already the
+/// final post-falloff / super-weapon value the game computed before the
+/// IDamageable call (decompile Gear/BulletWeapon.cs:525-544), and per-shot
+/// piercing dedup / per-pellet counting happen upstream of that call, so the
+/// tap inherits them with no recompute. Proximity self-pops go straight to
+/// SendExplode (ManagerUpdate) and never reach OnIncomingDamage, so a spitter
+/// setting itself off deals no health damage. OnIncomingDamage fires only on
+/// the client that dealt the damage (remote peers pop via
+/// ReceiveDamage→DoExplode, which does not call OnIncomingDamage), preserving
+/// the shooter-reports-to-host netcode.
 ///
-/// ICF WARNING — why the bullet tap is NOT a patch on
-/// InfectionSpitterDamage.BulletDamage (the original hammer-crash bug): the
+/// ICF WARNING — why the damage tap is on InfectionSpitter.OnIncomingDamage
+/// (a unique, non-folded body) and NOT on InfectionSpitterDamage.BulletDamage
+/// (the original hammer-crash bug): the
 /// four damage forwarders BulletDamage / MeleeDamage / FireDamage /
 /// ExplosionDamage all have the identical trivial body
 /// `m_spitter.OnIncomingDamage(dam)` (decompile
@@ -58,102 +58,55 @@ namespace KillableSpitters.Patches.Spitters;
 internal static class Patch_SpitterDamage
 {
     /// <summary>
-    /// Bullet damage tap: reports the final post-falloff damage of every
-    /// bullet the original actually applied to a spitter. BulletWeapon.BulletHit
-    /// is the single funnel for all player bullet paths (class header) and has
-    /// a large, unique, multi-caller static body — safe to detour, unlike the
-    /// ICF-folded receiver methods.
+    /// Damage tap + pop-per-hit + dead-guard for every damage source (bullets,
+    /// melee, explosion, fire, and custom-weapon mods all funnel here —
+    /// decompile InfectionSpitterDamage.cs:25-77). The original OnIncomingDamage
+    /// discards dam and just pops the spitter; we report dam to the host health
+    /// pool (SpitterKillManager owns accumulation / kill decision / netcode) so
+    /// any damage can kill.
     ///
-    /// __result == doDamage &amp; flag: true iff the original called
-    /// damageable.BulletDamage on this invocation, with the piercing
-    /// TempSearchID dedup already applied (decompile
-    /// Gear/BulletWeapon.cs:523-552) — exact parity with the old
-    /// receiver-side tap. Dead/dying spitters are guarded inside
-    /// ReportBulletDamage, and their pops are blocked by Pre_OnIncomingDamage.
+    /// dam is the final value the game passed the IDamageable receiver — for
+    /// real weapons already post-falloff / super-weapon scaled, and with piercing
+    /// dedup / per-pellet counting applied upstream, so no recompute is needed.
     ///
-    /// The damage recompute mirrors the original's pre-call falloff math
-    /// (decompile Gear/BulletWeapon.cs:525-533). If a future build changes
-    /// BulletHit's damage shaping this drifts silently — balance-only, no
-    /// crash; re-diff after game updates.
+    /// Pop behavior is unchanged: vanilla gates damage pops behind a 5s cooldown
+    /// (m_damageExplodeTimer, InfectionSpitter.cs:337-347); this replaces the
+    /// body without it, so sustained fire keeps popping the spitter until it
+    /// dies. DoExplode's own m_isExploding re-entry guard paces the pops to one
+    /// per wind-up cycle, and the m_isExploding skip below also avoids
+    /// re-broadcasting the vanilla explode packet for every hit landing
+    /// mid-wind-up (the hit still counts). Pops are triggered on the shooter's
+    /// client (vanilla design).
     ///
-    /// Ordering: the old receiver prefix reported BEFORE the pop; this
-    /// postfix reports after OnIncomingDamage already ran, so a killing
-    /// blow's own pop is in flight (or just completed) when the death state
-    /// lands. KillSpitter cases (a)/(b) adopt exactly that pop — no visible
-    /// change.
-    /// </summary>
-    [HarmonyPatch(typeof(BulletWeapon), nameof(BulletWeapon.BulletHit))]
-    [HarmonyPostfix]
-    public static void Post_BulletHit(Weapon.WeaponHitData weaponRayData, float additionalDis, bool __result)
-    {
-        try
-        {
-            if (!__result)
-                return;
-
-            var collider = weaponRayData.rayHit.collider;
-            if (collider == null)
-                return;
-
-            var spitterDamage = collider.GetComponent<global::InfectionSpitterDamage>();
-            if (spitterDamage == null)
-                return;
-
-            var spitter = spitterDamage.m_spitter;
-            if (spitter == null)
-                return;
-
-            // Recompute the post-falloff damage exactly like the original
-            // does before the IDamageable call (Gear/BulletWeapon.cs:525-533).
-            var dist = weaponRayData.rayHit.distance + additionalDis;
-            var damage = weaponRayData.damage;
-            var falloff = weaponRayData.damageFalloff;
-
-            if (dist > falloff.x)
-                damage *= Math.Max(1f - (dist - falloff.x) / (falloff.y - falloff.x), BulletWeapon.s_falloffMin);
-
-            if (Weapon.SuperWeapons)
-                damage *= 100f;
-
-            SpitterKillManager.ReportBulletDamage(spitter, damage);
-        }
-        catch (Exception ex)
-        {
-            SpitterKillManager.Break(ex);
-        }
-    }
-
-    /// <summary>
-    /// Pop-per-hit + dead-guard for every pop source (bullets, melee,
-    /// explosion, fire all funnel here — decompile
-    /// InfectionSpitterDamage.cs:25-77). Vanilla gates damage pops behind a
-    /// 5s cooldown (m_damageExplodeTimer, InfectionSpitter.cs:337-347); this
-    /// replaces the body without it, so sustained fire keeps popping the
-    /// spitter until it dies. DoExplode's own m_isExploding re-entry guard
-    /// paces the pops to one per wind-up cycle, and the m_isExploding skip
-    /// below also avoids re-broadcasting the vanilla explode packet for every
-    /// bullet landing mid-wind-up. Pops are triggered on the shooter's client
-    /// (vanilla design).
+    /// Ordering: we report AFTER the pop is in flight (SendExplode/SendSlowExplode
+    /// set m_isExploding via the local DoExplode), matching the old
+    /// receiver-then-report order — a killing blow's own pop is already winding
+    /// up when the death lands, so KillSpitter case (a) adopts it.
     /// </summary>
     [HarmonyPatch(typeof(InfectionSpitter), nameof(InfectionSpitter.OnIncomingDamage))]
     [HarmonyPrefix]
-    public static bool Pre_OnIncomingDamage(InfectionSpitter __instance)
+    public static bool Pre_OnIncomingDamage(InfectionSpitter __instance, float dam)
     {
         try
         {
-            // Dead/dying spitters must not trigger further explosions.
+            // Dead/dying spitters must not take damage or trigger further pops.
             if (SpitterKillManager.IsDeadOrDying(__instance.m_spitterIndex))
                 return false;
 
-            // Pop already winding up — nothing to add, don't resend.
+            // Pop already winding up — don't resend it, but the hit still counts.
             if (__instance.m_isExploding)
+            {
+                SpitterKillManager.ReportDamage(__instance, dam);
                 return false;
+            }
 
-            // Vanilla body minus the 5s m_damageExplodeTimer gate.
+            // Vanilla pop minus the 5s m_damageExplodeTimer gate.
             if (__instance.m_currentState == InfectionSpitter.eSpitterState.Retracted)
                 __instance.SendSlowExplode();
             else
                 __instance.SendExplode();
+
+            SpitterKillManager.ReportDamage(__instance, dam);
 
             return false;
         }
@@ -288,7 +241,8 @@ internal static class Patch_SpitterDamage
             {
                 Plugin.Logger.LogWarning(
                     "[SpitterKill] Damage forwarders are NOT folded on this build — the ICF assumption " +
-                    "behind the BulletHit tap no longer holds: "
+                    "that keeps them unpatchable no longer holds (the tap is on OnIncomingDamage, but the " +
+                    "house rule against patching a forwarder still stands): "
                     + string.Join(", ", codePtrs.Select(kv => $"{kv.Key}=0x{kv.Value:X}")));
             }
         }
