@@ -24,4 +24,5 @@ Config file: `BepInEx/config/the_tavern-KillableSpitters.cfg`
 | Setting (section `General`)  | Default | Description |
 | ---------------------------- | ------- | ----------- |
 | `SpitterHealth`              | `30.0`  | Health pool for killable spitters (drained by any damage type). Only the host's value applies. |
-| `SpitterGlueKillSeconds`     | `0.7`   | Seconds after being C-foamed before a spitter dies. `0` or less keeps the vanilla freeze-only behavior. Only the host's value applies. |
+| `SpitterFreezeDuration`      | `0.7`   | Seconds a C-foamed spitter stays frozen — before it dies (if `CfoamKillsSpitters` is on) or thaws back to normal (if off). Only the host's value applies. |
+| `CfoamKillsSpitters`         | `true`  | Whether C-foam kills spitters (foamed spitter dies with the destruction burst, no infection pop). Off keeps the vanilla freeze-only behavior. Only the host's value applies. |

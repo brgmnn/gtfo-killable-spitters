@@ -44,11 +44,13 @@ namespace KillableSpitters.Patches.Spitters;
 ///   revives (checkpoint recall can restore a pre-death snapshot).
 ///
 /// Config semantics (host-authoritative): only the HOST's SpitterHealth /
-/// SpitterGlueKillSeconds values matter. Damage accumulation and the death
-/// decision run exclusively on the host. Clients always send damage reports,
-/// always apply replicated death states, and the dead-guards always apply so
-/// dead spitters stay dead everywhere. The feature itself has no on/off
-/// toggle — installing the mod is the opt-in.
+/// SpitterFreezeDuration / CfoamKillsSpitters values drive damage accumulation
+/// and the death decision, which run exclusively on the host. Clients always
+/// send damage reports, always apply replicated death states, and the
+/// dead-guards always apply so dead spitters stay dead everywhere. The freeze
+/// override for non-lethal C-foam (see OnSpitterGlued) is the one per-peer
+/// exception. The feature itself has no on/off toggle — installing the mod is
+/// the opt-in.
 ///
 /// Death sequence ("pops on every hit + death pop"): Patch_SpitterDamage
 /// removes the vanilla 5s damage-pop cooldown, so sustained fire pops the
@@ -56,10 +58,12 @@ namespace KillableSpitters.Patches.Spitters;
 /// always produces exactly one final explosion. KillSpitter adopts an
 /// in-flight or just-finished pop where one exists, otherwise triggers
 /// DoExplode directly (DoExplode only guards on m_isExploding). C-foam is
-/// also lethal: instead of only the vanilla 4-minute freeze, the host kills
-/// a foamed spitter after Config_SpitterGlueKillSeconds (replicated exactly
-/// like a bullet kill) — and a foamed spitter dies in place with only the
-/// destruction burst, skipping the final infection pop entirely.
+/// also lethal by default (Config_CfoamKillsSpitters): instead of only the
+/// vanilla 4-minute freeze, the host kills a foamed spitter after
+/// Config_SpitterFreezeDuration (replicated exactly like a bullet kill) — and a
+/// foamed spitter dies in place with only the destruction burst, skipping the
+/// final infection pop entirely. With CfoamKillsSpitters off, C-foam only
+/// freezes (for Config_SpitterFreezeDuration, then thaws) and never kills.
 /// The flyer's death burst + sound (SpitterDeathFx) land together with the
 /// death pop, locally on every peer, and the model is hidden on that same
 /// frame so the explosion and the disappearance coincide. Finalization
@@ -170,8 +174,9 @@ public static class SpitterKillManager
     private static readonly HashSet<ushort> _modelHidden = new();
 
     /// <summary>HOST only: Clock.Time each live spitter was first C-foamed;
-    /// TickGlueKill kills it Config_SpitterGlueKillSeconds later (the first
-    /// foam wins, re-foams don't reset the clock).</summary>
+    /// TickGlueKill kills it Config_SpitterFreezeDuration later (the first
+    /// foam wins, re-foams don't reset the clock). Only populated when
+    /// Config_CfoamKillsSpitters is on.</summary>
     private static readonly Dictionary<ushort, float> _gluedAt = new();
 
     private static readonly StateReplicator<SpitterDeathState>?[] _replicators =
@@ -408,8 +413,10 @@ public static class SpitterKillManager
 
     /// <summary>
     /// Called from the InfectionSpitter.DoGetGlued postfix, which fires on
-    /// every peer for any foaming (local trigger or vanilla packet). HOST
-    /// only: starts the C-foam kill clock.
+    /// every peer for any foaming (local trigger or vanilla packet). Applies
+    /// the configured freeze behavior: if C-foam kills, the HOST starts the
+    /// kill clock; otherwise every peer overrides the vanilla ~240s freeze with
+    /// Config_SpitterFreezeDuration so the spitter thaws after that time.
     /// </summary>
     public static void OnSpitterGlued(InfectionSpitter spitter)
     {
@@ -418,9 +425,6 @@ public static class SpitterKillManager
 
         try
         {
-            if (!SNet.IsMaster || Plugin.Config_SpitterGlueKillSeconds <= 0f)
-                return;
-
             var index = spitter.m_spitterIndex;
 
             if (index >= SpitterCapacity)
@@ -432,7 +436,26 @@ public static class SpitterKillManager
             if (IsDeadOrDying(index))
                 return;
 
-            _gluedAt.TryAdd(index, Clock.Time);
+            if (Plugin.Config_CfoamKillsSpitters)
+            {
+                // HOST: kill the spitter Config_SpitterFreezeDuration after it
+                // was foamed (first foam wins; re-foams don't reset the clock).
+                // We deliberately leave m_stayInTimer at the vanilla 240 here:
+                // the spitter must stay frozen (and keep m_isGlued true) until
+                // the replicated death lands, or Update clears m_isGlued at
+                // m_stayInTimer < 5 (decompile InfectionSpitter.cs:513-520) and
+                // the kill loses its pop-less foam death (KillSpitter case (c)).
+                if (SNet.IsMaster)
+                    _gluedAt.TryAdd(index, Clock.Time);
+            }
+            else
+            {
+                // No kill: shorten the vanilla ~240s freeze to the configured
+                // duration on every peer (the freeze is a per-peer local
+                // retract; m_stayInTimer counts down in ManagerUpdate and thaws
+                // to Woke at < 0 — decompile InfectionSpitter.cs:237-249).
+                spitter.m_stayInTimer = Math.Max(0f, Plugin.Config_SpitterFreezeDuration);
+            }
         }
         catch (Exception ex)
         {
@@ -461,7 +484,7 @@ public static class SpitterKillManager
             return;
         }
 
-        if (Clock.Time - gluedAt < Plugin.Config_SpitterGlueKillSeconds)
+        if (Clock.Time - gluedAt < Plugin.Config_SpitterFreezeDuration)
             return;
 
         _gluedAt.Remove(index);

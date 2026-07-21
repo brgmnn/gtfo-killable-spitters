@@ -28,10 +28,18 @@ public class Plugin : BasePlugin
     public static float Config_SpitterHealth { get; set; }
 
     /// <summary>
-    /// Seconds after being C-foamed before a spitter dies (0 or less keeps
-    /// the vanilla freeze-only behavior). Host-authoritative.
+    /// Seconds a C-foamed spitter stays frozen — before it dies (if
+    /// <see cref="Config_CfoamKillsSpitters"/> is on) or thaws back to normal
+    /// (if off). Host-authoritative for the kill timing.
     /// </summary>
-    public static float Config_SpitterGlueKillSeconds { get; set; }
+    public static float Config_SpitterFreezeDuration { get; set; }
+
+    /// <summary>
+    /// Whether C-foam kills spitters (foamed spitter dies with the destruction
+    /// burst, no infection pop). Off keeps the vanilla freeze-only behavior.
+    /// Host-authoritative.
+    /// </summary>
+    public static bool Config_CfoamKillsSpitters { get; set; }
 
     public override void Load()
     {
@@ -43,16 +51,23 @@ public class Plugin : BasePlugin
             new ConfigDescription("Health pool for killable spitters (drained by any damage " +
                                   "type). Only the lobby host's value applies."));
 
-        var spitterGlueKillSeconds = Config.Bind(
-            new ConfigDefinition("General", "SpitterGlueKillSeconds"),
+        var spitterFreezeDuration = Config.Bind(
+            new ConfigDefinition("General", "SpitterFreezeDuration"),
             0.7f,
-            new ConfigDescription("Seconds after being C-foamed before a spitter dies (with the " +
-                                  "full death explosion). 0 or less keeps the vanilla freeze-only " +
-                                  "behavior. Values beyond the vanilla 240s freeze fire after the " +
-                                  "foam has worn off. Only the lobby host's value applies."));
+            new ConfigDescription("Seconds a C-foamed spitter stays frozen — before it dies if " +
+                                  "CfoamKillsSpitters is on, otherwise before it thaws back to " +
+                                  "normal. Only the lobby host's value applies to the kill timing."));
+
+        var cfoamKillsSpitters = Config.Bind(
+            new ConfigDefinition("General", "CfoamKillsSpitters"),
+            true,
+            new ConfigDescription("Whether C-foam kills spitters (a foamed spitter dies with the " +
+                                  "destruction burst and no infection pop). Off keeps the vanilla " +
+                                  "freeze-only behavior. Only the lobby host's value applies."));
 
         Config_SpitterHealth = spitterHealth.Value;
-        Config_SpitterGlueKillSeconds = spitterGlueKillSeconds.Value;
+        Config_SpitterFreezeDuration = spitterFreezeDuration.Value;
+        Config_CfoamKillsSpitters = cfoamKillsSpitters.Value;
 
         Config.Save();
 
