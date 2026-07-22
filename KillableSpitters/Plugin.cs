@@ -54,7 +54,7 @@ public class Plugin : BasePlugin
         var spitterFreezeDuration = Config.Bind(
             new ConfigDefinition("General", "SpitterFreezeDuration"),
             0.7f,
-            new ConfigDescription("Seconds a C-foamed spitter stays frozen — before it dies if " +
+            new ConfigDescription("Seconds a C-foamed spitter stays frozen before it dies if " +
                                   "CfoamKillsSpitters is on, otherwise before it thaws back to " +
                                   "normal. Only the lobby host's value applies to the kill timing."));
 
