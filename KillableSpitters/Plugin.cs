@@ -52,18 +52,18 @@ public class Plugin : BasePlugin
                                   "type). Only the lobby host's value applies."));
 
         var spitterFreezeDuration = Config.Bind(
-            new ConfigDefinition("General", "SpitterFreezeDuration"),
+            new ConfigDefinition("C-Foam", "SpitterFreezeDuration"),
             0.7f,
-            new ConfigDescription("Seconds a C-foamed spitter stays frozen before it dies if " +
-                                  "CfoamKillsSpitters is on, otherwise before it thaws back to " +
-                                  "normal. Only the lobby host's value applies to the kill timing."));
+            new ConfigDescription("How many seconds a C-foamed spitter stays frozen before it " +
+                                  "dies if CfoamKillsSpitters is on, otherwise before it thaws back " +
+                                  "to normal. Only the lobby host's value applies to the kill timing.\n" +
+                                  "Note: Base GTFO freezes spitters for 240 seconds."));
 
         var cfoamKillsSpitters = Config.Bind(
-            new ConfigDefinition("General", "CfoamKillsSpitters"),
+            new ConfigDefinition("C-Foam", "CfoamKillsSpitters"),
             true,
-            new ConfigDescription("Whether C-foam kills spitters (a foamed spitter dies with the " +
-                                  "destruction burst and no infection pop). Off keeps the vanilla " +
-                                  "freeze-only behavior. Only the lobby host's value applies."));
+            new ConfigDescription("Whether C-foam kills spitters. Off keeps the vanilla freeze-only " +
+                                  "behavior. Only the lobby host's value applies."));
 
         Config_SpitterHealth = spitterHealth.Value;
         Config_SpitterFreezeDuration = spitterFreezeDuration.Value;
