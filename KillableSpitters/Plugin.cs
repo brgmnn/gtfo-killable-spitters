@@ -48,8 +48,8 @@ public class Plugin : BasePlugin
         var spitterHealth = Config.Bind(
             new ConfigDefinition("General", "SpitterHealth"),
             30.0f,
-            new ConfigDescription("Health pool for killable spitters (drained by any damage " +
-                                  "type). Only the lobby host's value applies."));
+            new ConfigDescription("Health pool for killable spitters. Only the lobby host's " +
+                                  "value applies."));
 
         var spitterFreezeDuration = Config.Bind(
             new ConfigDefinition("C-Foam", "SpitterFreezeDuration"),
