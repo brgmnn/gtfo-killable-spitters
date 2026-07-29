@@ -46,12 +46,6 @@
     <Reference Remove="$(Interop)\Newtonsoft.Json.dll" />
 
     <!-- Thunderstore Plugins -->
-    <!-- GTFO-API is bundled inside the package; AmorLib is a Thunderstore
-         dependency and must NOT be copied into the zip (bundling it gets the
-         package rejected), so it is compile-time only (Private="false").
-         ExtraWeaponCustomization is a SOFT dependency (EWCCompat only patches
-         it when the plugin is loaded), compile-time only for the same
-         reason. -->
     <Reference Include="$(Plugins)\GTFO-API.dll" Private="false" />
     <Reference Include="$(Plugins)\AmorLib.dll" Private="false" />
     <Reference Include="$(Plugins)\ExtraWeaponCustomization.dll" Private="false" />
