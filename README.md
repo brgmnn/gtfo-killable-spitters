@@ -13,7 +13,7 @@ teammates, and lobbies with more than 4 players are handled correctly.
 
 Works with [ExtraWeaponCustomization](https://thunderstore.io/c/gtfo/p/Dinorush/ExtraWeaponCustomization/):
 EWC custom projectiles, DoTs, explosions and foam all affect spitters. No
-config needed; the integration is inactive if EWC isn't installed.
+config needed, the integration is inactive if EWC isn't installed.
 
 ## Installation
 

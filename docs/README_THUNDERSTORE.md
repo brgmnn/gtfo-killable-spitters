@@ -16,7 +16,7 @@ Makes GTFO's infection spitters killable.
   explosions and foam all affect spitters. No config needed; ignored if EWC
   isn't installed. (Weapon config authors: EWC classifies spitters as *object*
   targets, so `Trigger`s restricted to `HitEnemy`/`HitPlayer` never match a
-  spitter hit — use e.g. `"Trigger": "Hit"` for effects that should also apply
+  spitter hit. Use `"Trigger": "Hit"` for effects that should also apply
   to spitters.)
 
 Also includes a spitter targeting fix: spitters no longer aggro onto AI bot
