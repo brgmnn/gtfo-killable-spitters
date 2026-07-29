@@ -11,6 +11,10 @@ late joiners.
 Also includes a spitter targeting fix: spitters no longer aggro onto AI bot
 teammates, and lobbies with more than 4 players are handled correctly.
 
+Works with [ExtraWeaponCustomization](https://thunderstore.io/c/gtfo/p/Dinorush/ExtraWeaponCustomization/):
+EWC custom projectiles, DoTs, explosions and foam all affect spitters. No
+config needed; the integration is inactive if EWC isn't installed.
+
 ## Installation
 
 Install from Thunderstore as `the_tavern-KillableSpitters` using r2modman or

@@ -35,10 +35,12 @@ namespace KillableSpitters.Patches;
 ///    class vtable for every slot backed by that MethodInfo. Covers native
 ///    game-code interface call sites (e.g. sentry legacy detection), which
 ///    call the cached vtable methodPtr directly.
-/// Hardcoded native direct calls to the folded body are not covered — vanilla
-/// never direct-calls GetHealthRel on a spitter (audited: all other callers
-/// are player-damage reads; the one interface-dispatch consumer that can see
-/// a spitter, sentry legacy detection, is handled by Fix_SpitterSentryTarget).
+/// Hardcoded native direct calls to the folded body are not covered — audited:
+/// vanilla never direct-calls GetHealthRel on a spitter (all other callers are
+/// player-damage reads). The one interface-dispatch consumer that can now see
+/// a live spitter — sentry legacy detection — IS covered by the vtable
+/// rewrite; the scan-termination bug that surfaces once spitters report
+/// health is fixed separately in Fix_SpitterSentryTarget.
 ///
 /// The replacement (HealthRelThunk) is called from native code with the
 /// il2cpp instance-method ABI (this, MethodInfo*). It must never throw and
@@ -65,7 +67,7 @@ internal static unsafe class Fix_SpitterHealthRel
 
     private static bool _warnedThunkFailure;
 
-    /// <summary>True once the redirect is live (drives the smoke check).</summary>
+    /// <summary>True once the redirect is live.</summary>
     internal static bool Installed { get; private set; }
 
     /// <summary>
@@ -82,7 +84,7 @@ internal static unsafe class Fix_SpitterHealthRel
             var klass = Il2CppClassPointerStore<global::InfectionSpitterDamage>.NativeClassPtr;
             if (klass == IntPtr.Zero)
             {
-                Abort("class pointer unavailable");
+                WarnAborted("class pointer unavailable");
                 return;
             }
 
@@ -92,7 +94,7 @@ internal static unsafe class Fix_SpitterHealthRel
             var methodPtr = IL2CPP.il2cpp_class_get_method_from_name(klass, "GetHealthRel", 0);
             if (methodPtr == IntPtr.Zero)
             {
-                Abort("GetHealthRel not found on InfectionSpitterDamage");
+                WarnAborted("GetHealthRel not found on InfectionSpitterDamage");
                 return;
             }
 
@@ -103,13 +105,13 @@ internal static unsafe class Fix_SpitterHealthRel
             var name = Marshal.PtrToStringAnsi(method.Name);
             if (name != "GetHealthRel")
             {
-                Abort($"resolved method is named '{name}'");
+                WarnAborted($"resolved method is named '{name}'");
                 return;
             }
 
             if (method.ParametersCount != 0)
             {
-                Abort($"unexpected parameter count {method.ParametersCount}");
+                WarnAborted($"unexpected parameter count {method.ParametersCount}");
                 return;
             }
 
@@ -119,7 +121,7 @@ internal static unsafe class Fix_SpitterHealthRel
                 : null;
             if (returnTypeName != "System.Single")
             {
-                Abort($"unexpected return type '{returnTypeName}'");
+                WarnAborted($"unexpected return type '{returnTypeName}'");
                 return;
             }
 
@@ -175,7 +177,7 @@ internal static unsafe class Fix_SpitterHealthRel
         }
     }
 
-    private static void Abort(string reason)
+    private static void WarnAborted(string reason)
     {
         Plugin.Logger.LogWarning(
             $"[SpitterHealthRel] Install aborted ({reason}), spitters keep the vanilla " +

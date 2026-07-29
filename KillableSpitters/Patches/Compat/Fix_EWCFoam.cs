@@ -21,13 +21,9 @@ namespace KillableSpitters.Patches.Compat;
 /// written.
 ///
 /// Two patches, applied manually by EWCCompat (no [HarmonyPatch] attributes —
-/// see EWCCompat structure rules):
-///  - Foam ctor postfix: clears the Object bit from the ctor blacklist (a
-///    private Effect field) and from the already-verified default trigger, so
-///    spitter hit contexts actually reach TriggerApply. JSON-deserialized
-///    triggers pick the reduced blacklist up via Effect.VerifyTriggers.
-///    Lock/door hits also start flowing as contexts, but the original loop
-///    still skips every Object context itself, so their behavior is unchanged.
+/// see EWCCompat structure rules). TriggerApply is patched BEFORE the ctor so
+/// a partial failure can never leave the blacklist relaxed with nothing
+/// consuming the resulting contexts:
 ///  - TriggerApply prefix: applies the spitter reaction for Object contexts
 ///    whose damageable is a spitter, then lets the original run untouched (it
 ///    skips those same contexts, so nothing double-applies). The reaction is
@@ -37,25 +33,38 @@ namespace KillableSpitters.Patches.Compat;
 ///    Vanilla spitters fully freeze on ANY glue volume, so any positive foam
 ///    amount glues — EWC's per-enemy foam accumulation deliberately does not
 ///    apply (a spitter has no Dam_EnemyDamageBase glue meter to fill).
+///  - Foam ctor postfix: clears the Object bit from the ctor blacklist (a
+///    private Effect field) and from the already-verified default trigger, so
+///    spitter hit contexts actually reach TriggerApply. JSON-deserialized
+///    triggers pick the reduced blacklist up via Effect.VerifyTriggers.
+///    Lock/door hits also start flowing as contexts, but the original loop
+///    still skips every Object context itself, so their behavior is unchanged.
 /// </summary>
-internal static class EWCFoamPatch
+internal static class Fix_EWCFoam
 {
     /// <summary>Permanently fall back to EWC-default behavior if a patch ever throws.</summary>
     private static bool _broken;
 
+    private static bool _applied;
+
     internal static void Apply(Harmony harmony)
     {
-        var ctor = AccessTools.Constructor(typeof(Foam), Type.EmptyTypes)
-            ?? throw new MissingMethodException("EWC Foam constructor not found");
+        if (_applied)
+            return;
+
         var triggerApply = AccessTools.Method(typeof(Foam), nameof(Foam.TriggerApply))
             ?? throw new MissingMethodException("EWC Foam.TriggerApply not found");
+        var ctor = AccessTools.Constructor(typeof(Foam), Type.EmptyTypes)
+            ?? throw new MissingMethodException("EWC Foam constructor not found");
 
         // Resolve the private blacklist field up front so a rename fails the
         // whole apply (EWCCompat warns) instead of breaking mid-game.
         _ = Cache.BlacklistType;
 
-        harmony.Patch(ctor, postfix: new HarmonyMethod(typeof(EWCFoamPatch), nameof(Post_FoamCtor)));
-        harmony.Patch(triggerApply, prefix: new HarmonyMethod(typeof(EWCFoamPatch), nameof(Pre_TriggerApply)));
+        harmony.Patch(triggerApply, prefix: new HarmonyMethod(typeof(Fix_EWCFoam), nameof(Pre_TriggerApply)));
+        harmony.Patch(ctor, postfix: new HarmonyMethod(typeof(Fix_EWCFoam), nameof(Post_FoamCtor)));
+
+        _applied = true;
     }
 
     /// <summary>EWC-typed reflection handles, resolved lazily on first touch
@@ -90,7 +99,9 @@ internal static class EWCFoamPatch
         }
         catch (Exception ex)
         {
-            BreakOnce("blacklist relax", ex);
+            _broken = true;
+            Plugin.Logger.LogError(
+                $"[EWCFoam] Blacklist relax failed, EWC foam no longer affects spitters: {ex}");
         }
     }
 
@@ -109,7 +120,7 @@ internal static class EWCFoamPatch
                 if ((damContext.DamageType & DamageType.Object) == 0)
                     continue;
 
-                var damageable = damContext.Damageable?.TryCast<global::InfectionSpitterDamage>();
+                var damageable = damContext.Damageable?.TryCast<InfectionSpitterDamage>();
                 if (damageable == null)
                     continue;
 
@@ -128,17 +139,9 @@ internal static class EWCFoamPatch
         }
         catch (Exception ex)
         {
-            BreakOnce("spitter foam apply", ex);
+            _broken = true;
+            Plugin.Logger.LogError(
+                $"[EWCFoam] Spitter foam apply failed, EWC foam no longer affects spitters: {ex}");
         }
-    }
-
-    private static void BreakOnce(string stage, Exception ex)
-    {
-        if (_broken)
-            return;
-
-        _broken = true;
-        Plugin.Logger.LogWarning(
-            $"[EWCCompat] Foam compat failed ({stage}), EWC foam no longer affects spitters: {ex}");
     }
 }

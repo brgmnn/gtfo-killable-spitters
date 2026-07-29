@@ -30,7 +30,8 @@ namespace KillableSpitters.Patches;
 ///
 /// The non-legacy path (CheckForTarget) walks AIG course-node enemy lists —
 /// EnemyAgents only, spitters can never appear there — and needs no guard.
-/// Detection runs host-side only (MineDeployerInstance precedent), no netcode.
+/// The reimplementation is a pure local read (OverlapSphere + linecasts) and
+/// sends nothing, so it needs no netcode regardless of who runs it.
 ///
 /// Decompile reference: gtfo-decompile/Modules-ASM/SentryGunInstance_Detection.cs.
 /// </summary>

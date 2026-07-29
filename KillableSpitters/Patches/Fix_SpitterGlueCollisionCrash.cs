@@ -7,7 +7,7 @@ namespace KillableSpitters.Patches;
 /// Neutralizes a hard crash that occurs when a C-Foam / glue-mine blob collides with a spitter while
 /// a downstream mod postfixes GlueGunProjectile.CollisionCheck. A spitter's damageable
 /// InfectionSpitterDamage is an IGlueTarget whose GlueTargetEnemyAgent and GetBaseAgent() are
-/// hardcoded null (decompile InfectionSpitterDamage.cs:126,53) because a spitter is not an
+/// hardcoded null (decompile InfectionSpitterDamage.cs:126 and :53) because a spitter is not an
 /// EnemyAgent; DoorEnemyFixUpdated &lt;= 1.1.3 dereferences that without a guard in its
 /// GluePatches.Post_Collision postfix and throws a NullReferenceException. Because that throw is
 /// inside the il2cpp-&gt;managed trampoline there is no managed catch above it, so the game hard
@@ -22,12 +22,19 @@ namespace KillableSpitters.Patches;
 ///
 /// CollisionCheck has a large, unique body (not an ICF-foldable forwarder), so patching it is safe
 /// per the mod's identical-code-folding rule.
+///
+/// There is deliberately no _broken kill-switch here: the finalizer already fails safe in both
+/// directions (re-throw foreign exceptions, suppress the spitter case), and disabling it on an
+/// error would reintroduce the crash it exists to prevent.
 /// </summary>
 [HarmonyPatch]
 internal static class Fix_SpitterGlueCollisionCrash
 {
     /// <summary>One-time log so a repeatedly-firing suppression doesn't spam the console.</summary>
     private static bool _logged;
+
+    /// <summary>One-time log for the conservative fallback when the collider probe itself fails.</summary>
+    private static bool _loggedProbeFailure;
 
     [HarmonyPatch(typeof(GlueGunProjectile), nameof(GlueGunProjectile.CollisionCheck))]
     [HarmonyFinalizer]
@@ -42,9 +49,17 @@ internal static class Fix_SpitterGlueCollisionCrash
         {
             hitSpitter = SpitterColliders.IsSpitter(__instance.m_projLastRayHitCollider);
         }
-        catch
+        catch (Exception ex)
         {
             hitSpitter = true; // field unreadable: prefer suppressing over letting the game crash
+
+            if (!_loggedProbeFailure)
+            {
+                _loggedProbeFailure = true;
+                Plugin.Logger.LogWarning(
+                    "[SpitterGlueCollisionCrash] Could not identify the glue collision target, " +
+                    $"suppressing the NullReferenceException conservatively: {ex.Message}");
+            }
         }
 
         if (!hitSpitter)

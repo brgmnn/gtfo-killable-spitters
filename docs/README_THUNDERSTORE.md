@@ -12,6 +12,12 @@ Makes GTFO's infection spitters killable.
 - **Synced**: deaths are decided by the lobby host and replicated to every
   player, including late joiners. All players should install the mod; the
   host's settings decide the behavior.
+- **Works with ExtraWeaponCustomization**: EWC custom projectiles, DoTs,
+  explosions and foam all affect spitters. No config needed; ignored if EWC
+  isn't installed. (Weapon config authors: EWC classifies spitters as *object*
+  targets, so `Trigger`s restricted to `HitEnemy`/`HitPlayer` never match a
+  spitter hit — use e.g. `"Trigger": "Hit"` for effects that should also apply
+  to spitters.)
 
 Also includes a spitter targeting fix: spitters no longer aggro onto AI bot
 teammates, and lobbies with more than 4 players are handled correctly.

@@ -35,18 +35,25 @@ namespace KillableSpitters.Patches.Compat;
 /// Applied manually by EWCCompat only when EWC is loaded — no [HarmonyPatch]
 /// attributes here (see EWCCompat structure rules).
 /// </summary>
-internal static class EWCExplosionPatch
+internal static class Fix_EWCExplosion
 {
     /// <summary>Permanently fall back to EWC-default behavior if the postfix ever throws.</summary>
     private static bool _broken;
 
+    private static bool _applied;
+
     internal static void Apply(Harmony harmony)
     {
+        if (_applied)
+            return;
+
         var target = AccessTools.Method(typeof(ExplosionManager), "DoExplosionDamage")
             ?? throw new MissingMethodException("EWC ExplosionManager.DoExplosionDamage not found");
 
         harmony.Patch(target,
-            postfix: new HarmonyMethod(typeof(EWCExplosionPatch), nameof(Post_DoExplosionDamage)));
+            postfix: new HarmonyMethod(typeof(Fix_EWCExplosion), nameof(Post_DoExplosionDamage)));
+
+        _applied = true;
     }
 
     public static void Post_DoExplosionDamage(Vector3 position, Explosive explosiveBase, float triggerAmt)
@@ -74,17 +81,7 @@ internal static class EWCExplosionPatch
             {
                 var collider = colliders[i];
 
-                // Same spitter-collider resolution as SpitterColliders.IsSpitter,
-                // keeping the damageable it finds.
-                var damageable = collider.GetComponent<global::InfectionSpitterDamage>();
-                if (damageable == null)
-                {
-                    var material = collider.GetComponent<ColliderMaterial>();
-                    if (material != null)
-                        damageable = material.Damageable?.TryCast<global::InfectionSpitterDamage>();
-                }
-
-                if (damageable == null)
+                if (!SpitterColliders.TryGetDamage(collider, out var damageable))
                     continue;
 
                 // A spitter can expose several colliders — one damage report each.
@@ -114,8 +111,8 @@ internal static class EWCExplosionPatch
         catch (Exception ex)
         {
             _broken = true;
-            Plugin.Logger.LogWarning(
-                $"[EWCCompat] Explosion sweep failed, EWC explosions no longer damage spitters: {ex}");
+            Plugin.Logger.LogError(
+                $"[EWCExplosion] Explosion sweep failed, EWC explosions no longer damage spitters: {ex}");
         }
     }
 

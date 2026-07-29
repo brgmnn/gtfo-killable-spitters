@@ -10,8 +10,8 @@ namespace KillableSpitters.Patches.Compat;
 /// and filter spitters out before ever calling one:
 ///  - Projectiles / DoT gate on GetBaseDamagable().GetHealthRel() > 0 — fixed
 ///    generically by Fix_SpitterHealthRel (no EWC patch needed).
-///  - Explosions never enumerate spitters at all (EWCExplosionPatch).
-///  - Foam explicitly blacklists non-agent damageables (EWCFoamPatch).
+///  - Explosions never enumerate spitters at all (Fix_EWCExplosion).
+///  - Foam explicitly blacklists non-agent damageables (Fix_EWCFoam).
 ///
 /// Structure rules (why this looks the way it does):
 ///  - The patch classes carry NO [HarmonyPatch] attributes, so
@@ -21,8 +21,8 @@ namespace KillableSpitters.Patches.Compat;
 ///    bodies/signatures that are only JIT-compiled when EWC is present; this
 ///    driver's own signatures are EWC-free, so it is always safe to call.
 ///  - Each patch application is individually try/caught: an EWC refactor
-///    breaks that one compat feature with a warning, never the mod. Built and
-///    verified against EWC 4.12.6 (the 4.12.x line GTFriendlyO ships).
+///    breaks that one compat feature with a warning, never the mod. Verified
+///    against EWC 4.12.0 and 4.12.6 (the patched surfaces are identical).
 /// </summary>
 internal static class EWCCompat
 {
@@ -39,8 +39,8 @@ internal static class EWCCompat
         Plugin.Logger.LogInfo(
             $"[EWCCompat] ExtraWeaponCustomization {pluginInfo.Metadata.Version} detected, applying compat patches");
 
-        TryApply(harmony, "explosion", EWCExplosionPatch.Apply);
-        TryApply(harmony, "foam", EWCFoamPatch.Apply);
+        TryApply(harmony, "explosion", Fix_EWCExplosion.Apply);
+        TryApply(harmony, "foam", Fix_EWCFoam.Apply);
     }
 
     private static void TryApply(Harmony harmony, string name, Action<Harmony> apply)

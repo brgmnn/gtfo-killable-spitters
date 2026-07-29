@@ -1088,8 +1088,6 @@ public static class SpitterKillManager
     /// </summary>
     private static void RegisterDamagePointers()
     {
-        _damagePtrToIndex.Clear();
-
         var all = InfectionSpitter.s_allSpitters;
         if (all == null || all.Count == 0)
             return;
