@@ -4,6 +4,8 @@ using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using GTFO.API;
 using HarmonyLib;
+using KillableSpitters.Patches;
+using KillableSpitters.Patches.Compat;
 using KillableSpitters.Patches.Spitters;
 
 namespace KillableSpitters;
@@ -12,6 +14,7 @@ namespace KillableSpitters;
 [BepInProcess("GTFO.exe")]
 [BepInDependency("dev.gtfomodding.gtfo-api")]
 [BepInDependency("Amor.AmorLib")]
+[BepInDependency(EWCCompat.PluginGuid, BepInDependency.DependencyFlags.SoftDependency)]
 public class Plugin : BasePlugin
 {
     public const string Version = "1.0.0";
@@ -77,8 +80,16 @@ public class Plugin : BasePlugin
         // (see Patch_SpitterDamage class header). Log-only.
         Patch_SpitterDamage.LogDamageForwarderFoldState();
 
+        // Make spitters report their real health to liveness checks
+        // (vtable/MethodInfo redirect, NOT a Harmony patch — ICF fold trap;
+        // see Fix_SpitterHealthRel).
+        Fix_SpitterHealthRel.Install();
+
         // Apply patches
         var harmony = new Harmony(Name);
         harmony.PatchAll();
+
+        // ExtraWeaponCustomization compat (soft dependency; no-op without EWC)
+        EWCCompat.Init(harmony);
     }
 }

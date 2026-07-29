@@ -3,6 +3,23 @@
 See more at https://github.com/brgmnn/gtfo-killable-spitters
 
 
+## Unreleased
+
+### New
+
+* [ExtraWeaponCustomization](https://thunderstore.io/c/gtfo/p/Dinorush/ExtraWeaponCustomization/) (EWC) compatibility — custom weapons can now hurt spitters (verified against EWC 4.12.0–4.12.6; soft dependency, no effect without EWC installed)
+  * Spitters now report their real health through `GetHealthRel()` instead of the vanilla hardcoded 0, so EWC custom `Projectile`s and `DamageOverTime` ticks (and any other mod using the same "is it alive" check) no longer treat spitters as already dead
+  * EWC `Explosive` blasts now damage spitters in radius (EWC's own target search only ever finds enemies, players and locks)
+  * EWC `Foam` now foams spitters like a C-Foam globber hit — freezing and (by default) killing them (EWC foam never spawns a real glue projectile, and it explicitly skipped non-enemy targets)
+  * Note for weapon config authors: `Trigger`s restricted to `HitEnemy`/`HitPlayer` still never match a spitter hit (spitters classify as EWC `Object` targets) — use e.g. `"Trigger": "Hit"` for effects that should also apply to spitters
+
+### Change
+
+* Fix: Hard crash when foaming spitters (C-Foam Launcher / glue mines) while `DoorEnemyFixUpdated` ≤ 1.1.3 is installed
+  * That mod's `GlueGunProjectile.CollisionCheck` postfix throws a `NullReferenceException` on a spitter (a spitter has no `EnemyAgent`). KillableSpitters now suppresses just that foreign crash so C-Foam and glue mines keep working; the underlying bug should still be fixed upstream in DoorEnemyFixUpdated.
+* Fix: Sentries using legacy detection (`Sentry_LegacyEnemyDetection`) could stop acquiring targets while a spitter was in their detection cone once spitters report health
+
+
 ## [v1.0.0](https://github.com/brgmnn/gtfo-killable-spitters/releases/tag/v1.0.0) — July 21, 2026
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->

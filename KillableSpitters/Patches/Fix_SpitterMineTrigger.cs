@@ -1,6 +1,5 @@
 using System;
 using HarmonyLib;
-using Il2CppInterop.Runtime;
 using UnityEngine;
 
 namespace KillableSpitters.Patches;
@@ -85,7 +84,7 @@ internal static class Fix_SpitterMineTrigger
                 return true;                                    // clear beam -> vanilla
             if (!IsOnMask(nearest.collider, enemyMask))
                 return true;                                    // wall nearest -> vanilla (no trigger)
-            if (!IsSpitter(nearest.collider))
+            if (!SpitterColliders.IsSpitter(nearest.collider))
                 return true;                                    // real enemy nearest -> vanilla triggers
 
             // Nearest target is a spitter. Look past it for any non-spitter enemy that is not
@@ -122,7 +121,7 @@ internal static class Fix_SpitterMineTrigger
                 return false;                                   // nothing more on the beam
             if (!IsOnMask(hit.collider, enemyMask))
                 return false;                                   // wall -> everything beyond is occluded
-            if (!IsSpitter(hit.collider))
+            if (!SpitterColliders.IsSpitter(hit.collider))
                 return true;                                    // a real enemy is on the beam
 
             // Spitter: advance just past it and keep looking. The small epsilon guarantees forward
@@ -137,23 +136,4 @@ internal static class Fix_SpitterMineTrigger
 
     private static bool IsOnMask(Collider collider, LayerMask mask)
         => collider != null && (mask.value & (1 << collider.gameObject.layer)) != 0;
-
-    /// <summary>
-    /// True iff the hit collider belongs to a spitter — i.e. its damageable is an
-    /// InfectionSpitterDamage (the spitter's IDamageable, the sibling component weapons hit). The
-    /// spitter's damage collider carries InfectionSpitterDamage directly, mirroring how an enemy
-    /// limb collider carries Dam_EnemyDamageLimb; a ColliderMaterial indirection is handled as a
-    /// fallback for colliders that reference their damageable elsewhere.
-    /// </summary>
-    private static bool IsSpitter(Collider collider)
-    {
-        if (collider == null)
-            return false;
-
-        if (collider.GetComponent<InfectionSpitterDamage>() != null)
-            return true;
-
-        var damageable = collider.GetComponent<ColliderMaterial>()?.Damageable;
-        return damageable != null && damageable.TryCast<InfectionSpitterDamage>() != null;
-    }
 }

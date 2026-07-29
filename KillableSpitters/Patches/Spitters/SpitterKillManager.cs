@@ -179,6 +179,15 @@ public static class SpitterKillManager
     /// Config_CfoamKillsSpitters is on.</summary>
     private static readonly Dictionary<ushort, float> _gluedAt = new();
 
+    /// <summary>ALL peers: native pointer of each spitter's damage component
+    /// (InfectionSpitterDamage) → spitter index, registered per level at
+    /// OnBuildDone. Feeds the GetHealthRel redirect (Fix_SpitterHealthRel),
+    /// whose thunk must not call back into il2cpp — IL2CPP's Boehm GC never
+    /// moves objects, so the raw pointers are stable keys for the level's
+    /// lifetime, and the map is cleared with the rest of the runtime state
+    /// before the objects are destroyed.</summary>
+    private static readonly Dictionary<IntPtr, ushort> _damagePtrToIndex = new();
+
     private static readonly StateReplicator<SpitterDeathState>?[] _replicators =
         new StateReplicator<SpitterDeathState>?[SHARD_COUNT];
 
@@ -259,6 +268,36 @@ public static class SpitterKillManager
             new SpitterDamageEvent { SpitterIndex = index, Damage = dam },
             SNet.Master,
             SNet_ChannelType.GameOrderCritical);
+    }
+
+    /// <summary>
+    /// Health fraction for the GetHealthRel redirect (Fix_SpitterHealthRel).
+    /// Called from a native thunk: must stay allocation-free and must not
+    /// call back into il2cpp. Reports the vanilla 0 for anything unknown,
+    /// dead/dying, over capacity or after Break; a live spitter reports its
+    /// tracked fraction — the host's authoritative ledger, else the broadcast
+    /// mirror clients hold — and 1 while undamaged (absent entries). The live
+    /// fraction is floored just above 0 so a rounded-down broadcast can never
+    /// read as "dead" to a liveness check.
+    /// </summary>
+    internal static float GetHealthRelForDamagePtr(IntPtr damagePtr)
+    {
+        if (_broken || _damagePtrToIndex.Count == 0)
+            return 0f;
+
+        if (!_damagePtrToIndex.TryGetValue(damagePtr, out var index))
+            return 0f;
+
+        if (index >= SpitterCapacity || IsDeadOrDying(index))
+            return 0f;
+
+        if (_healthByIndex.TryGetValue(index, out var health))
+            return Math.Clamp(health / Math.Max(1f, Plugin.Config_SpitterHealth), 0.01f, 1f);
+
+        if (_healthRel.TryGetValue(index, out var rel))
+            return Math.Clamp(rel, 0.01f, 1f);
+
+        return 1f;
     }
 
     /// <summary>
@@ -1028,6 +1067,8 @@ public static class SpitterKillManager
                 _replicators[i] = replicator;
             }
 
+            RegisterDamagePointers();
+
             Plugin.Logger.LogDebug(
                 $"[SpitterKill] Ready ({SHARD_COUNT} shards, " +
                 $"health={Plugin.Config_SpitterHealth}, IsMaster={SNet.IsMaster})");
@@ -1036,6 +1077,38 @@ public static class SpitterKillManager
         {
             Break(ex);
         }
+    }
+
+    /// <summary>
+    /// Maps every spitter's damage-component pointer for the GetHealthRel
+    /// redirect (Fix_SpitterHealthRel). Runs at OnBuildDone — spitters only
+    /// spawn during deterministic level build, so the registry is complete
+    /// here (mirroring the index-identity assumption the replicators rely
+    /// on). Also emits the redirect's per-level smoke check.
+    /// </summary>
+    private static void RegisterDamagePointers()
+    {
+        _damagePtrToIndex.Clear();
+
+        var all = InfectionSpitter.s_allSpitters;
+        if (all == null || all.Count == 0)
+            return;
+
+        for (var i = 0; i < all.Count; i++)
+        {
+            var spitter = all[i];
+            if (spitter == null || spitter.m_damage == null)
+                continue;
+
+            _damagePtrToIndex[spitter.m_damage.Pointer] = spitter.m_spitterIndex;
+        }
+
+        Plugin.Logger.LogDebug(
+            $"[SpitterKill] Registered {_damagePtrToIndex.Count} spitter damage pointer(s)");
+
+        var first = all[0];
+        if (first != null && first.m_damage != null)
+            Fix_SpitterHealthRel.LogSmokeCheck(first.m_damage);
     }
 
     private static void OnLevelCleanup()
@@ -1082,6 +1155,7 @@ public static class SpitterKillManager
         _pendingDeathFx.Clear();
         _modelHidden.Clear();
         _gluedAt.Clear();
+        _damagePtrToIndex.Clear();
         _warnedCapacity = false;
 
         // Pool instances outlive the level — never leave a tint behind.

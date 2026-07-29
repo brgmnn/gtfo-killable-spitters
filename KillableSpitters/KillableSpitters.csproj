@@ -38,6 +38,7 @@
     <Reference Include="$(BepInEx)\core\Il2CppInterop.Common.dll" Private="false" />
     <Reference Include="$(BepInEx)\core\Il2CppInterop.Runtime.dll" Private="false" />
     <Reference Include="$(BepInEx)\core\MonoMod.RuntimeDetour.dll" Private="false" />
+    <Reference Include="$(BepInEx)\core\SemanticVersioning.dll" Private="false" />
 
     <!-- BepInEx Interop -->
     <Reference Include="$(Interop)\*.dll" Private="false" />
@@ -47,9 +48,13 @@
     <!-- Thunderstore Plugins -->
     <!-- GTFO-API is bundled inside the package; AmorLib is a Thunderstore
          dependency and must NOT be copied into the zip (bundling it gets the
-         package rejected), so it is compile-time only (Private="false"). -->
+         package rejected), so it is compile-time only (Private="false").
+         ExtraWeaponCustomization is a SOFT dependency (EWCCompat only patches
+         it when the plugin is loaded), compile-time only for the same
+         reason. -->
     <Reference Include="$(Plugins)\GTFO-API.dll" Private="false" />
     <Reference Include="$(Plugins)\AmorLib.dll" Private="false" />
+    <Reference Include="$(Plugins)\ExtraWeaponCustomization.dll" Private="false" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
