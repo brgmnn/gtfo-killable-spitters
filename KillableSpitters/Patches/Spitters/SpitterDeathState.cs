@@ -37,15 +37,6 @@ public unsafe struct SpitterDeathState
 
     // Note: not marked readonly — taking a pointer to a fixed buffer is not
     // permitted inside readonly members.
-    public bool IsDead(int localIndex)
-    {
-        if (localIndex < 0 || localIndex >= SpittersPerShard)
-            return false;
-
-        fixed (byte* bits = _deadBits)
-            return (bits[localIndex >> 3] & (1 << (localIndex & 7))) != 0;
-    }
-
     public void SetDead(int localIndex)
     {
         if (localIndex < 0 || localIndex >= SpittersPerShard)
@@ -53,15 +44,6 @@ public unsafe struct SpitterDeathState
 
         fixed (byte* bits = _deadBits)
             bits[localIndex >> 3] |= (byte)(1 << (localIndex & 7));
-    }
-
-    public void ClearDead(int localIndex)
-    {
-        if (localIndex < 0 || localIndex >= SpittersPerShard)
-            return;
-
-        fixed (byte* bits = _deadBits)
-            bits[localIndex >> 3] &= (byte)~(1 << (localIndex & 7));
     }
 
     /// <summary>Raw mask byte access, used to diff old vs new state cheaply.</summary>

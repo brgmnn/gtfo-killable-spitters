@@ -51,8 +51,8 @@ public class Plugin : BasePlugin
         var spitterHealth = Config.Bind(
             new ConfigDefinition("General", "SpitterHealth"),
             30.0f,
-            new ConfigDescription("Health pool for killable spitters. Only the lobby host's " +
-                                  "value applies."));
+            new ConfigDescription("Health pool for killable spitters. Values below 1.0 are " +
+                                  "raised to 1.0. Only the lobby host's value applies."));
 
         var spitterFreezeDuration = Config.Bind(
             new ConfigDefinition("C-Foam", "SpitterFreezeDuration"),
@@ -71,6 +71,11 @@ public class Plugin : BasePlugin
         Config_SpitterHealth = spitterHealth.Value;
         Config_SpitterFreezeDuration = spitterFreezeDuration.Value;
         Config_CfoamKillsSpitters = cfoamKillsSpitters.Value;
+
+        if (Config_SpitterHealth < 1f)
+            Logger.LogWarning(
+                $"SpitterHealth {Config_SpitterHealth} is below the minimum of 1.0 and will " +
+                "be raised to 1.0");
 
         Config.Save();
 

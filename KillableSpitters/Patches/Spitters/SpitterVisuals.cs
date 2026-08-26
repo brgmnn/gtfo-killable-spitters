@@ -91,10 +91,6 @@ public static class SpitterVisuals
     /// <summary>The death pop's particle color.</summary>
     public static Color32 DeathPopColor => RedPopColor;
 
-    /// <summary>Steady body glow of a spitter that died and is awaiting
-    /// finalization (applied after the death pop resets the vanilla color).</summary>
-    public static Color DeathSteadyGlow => RedGlowBase * SteadyGlowScale;
-
     /// <summary>One-shot local kill-switch for the tint paths only; restore
     /// paths ignore it. The kill feature is unaffected.</summary>
     private static bool _visualsBroken;
