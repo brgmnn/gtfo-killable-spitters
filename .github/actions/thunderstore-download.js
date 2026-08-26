@@ -1,5 +1,7 @@
 const fs = require("fs");
 const path = require("path");
+const { Readable } = require("stream");
+const { pipeline } = require("stream/promises");
 
 const run = async ({ github, context, core, io, fetch }) => {
   console.log("Downloading Thunderstore package...");
@@ -9,29 +11,37 @@ const run = async ({ github, context, core, io, fetch }) => {
 
   console.log(":: Downloading dependencies");
 
-  io.mkdirP("./deps");
+  await io.mkdirP("./deps");
 
-  for await (const dependency of dependencies) {
-    const [, team, package, version] = dependency.match(
+  for (const dependency of dependencies) {
+    const [, team, pkg, version] = dependency.match(
       /^([a-zA-Z0-9_]*)-([a-zA-Z0-9_]*)-([0-9.]*)$/,
     );
 
-    console.log(`   -> Fetching: ${team}-${package} @ ${version}`);
+    console.log(`   -> Fetching: ${team}-${pkg} @ ${version}`);
 
     const response = await fetch(
       `https://gcdn.thunderstore.io/live/repository/packages/${dependency}.zip`,
     );
 
-    // Create a write stream for the output file
+    if (!response.ok) {
+      throw new Error(
+        `Download failed for ${dependency}.zip: ${response.status} ${response.statusText}`,
+      );
+    }
+
     const dest = fs.createWriteStream(
-      path.resolve(".", "deps", `${team}-${package}.zip`),
+      path.resolve(".", "deps", `${team}-${pkg}.zip`),
     );
 
-    await new Promise((resolve, reject) => {
-      response.body.pipe(dest);
-      response.body.on("error", reject);
-      dest.on("finish", resolve);
-    });
+    // github-script hands us node-fetch (Node stream body); a native fetch
+    // body is a WHATWG stream and needs converting before it can be piped.
+    const body =
+      typeof response.body.pipe === "function"
+        ? response.body
+        : Readable.fromWeb(response.body);
+
+    await pipeline(body, dest);
   }
 };
 

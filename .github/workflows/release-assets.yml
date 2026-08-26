@@ -22,7 +22,7 @@ jobs:
         run: |
           if [ -z "${{ github.event.inputs.version }}" ]; then
             echo "No version specified, using latest draft"
-            echo "release=$(gh release list | head -n 1 | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+            echo "release=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')" >> "$GITHUB_OUTPUT"
           else
             echo "release=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
           fi

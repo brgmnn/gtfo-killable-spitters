@@ -14,7 +14,8 @@ EOF
 echo "$releases" | jq -c '.[]' | while read -r release; do
   name=$(echo "$release" | jq -r '.name')
   publishedAt=$(echo "$release" | jq -r '.publishedAt')
-  releasedAt=$(date -d "$publishedAt" +"%B %d, %Y")
+  # jq's strptime/strftime work the same on GNU and BSD (macOS), unlike date -d
+  releasedAt=$(jq -rn --arg d "$publishedAt" '$d | strptime("%Y-%m-%dT%H:%M:%SZ") | strftime("%B %d, %Y")')
   tag=$(echo "$release" | jq -r '.tagName')
 
   if [ "$publishedAt" = "0001-01-01T00:00:00Z" ]; then

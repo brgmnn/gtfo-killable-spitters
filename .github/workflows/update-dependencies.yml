@@ -1,4 +1,4 @@
-# Daily check for new Thunderstore releases of our mod dependencies. Any that are out of
+# Weekly check for new Thunderstore releases of our mod dependencies. Any that are out of
 # date get bumped to the latest published version in manifest.json and thunderstore.toml,
 # and opened as a single PR.
 
@@ -6,7 +6,7 @@ name: Update Dependencies
 
 on:
   schedule:
-    # Sunday at 16:00 UTC (7am PDT / 6am PST)
+    # Sunday at 14:00 UTC (7am PDT / 6am PST)
     - cron: "0 14 * * 0"
     #        *  * * * *
     #        |  | | | |

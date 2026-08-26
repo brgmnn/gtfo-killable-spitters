@@ -32,7 +32,7 @@ API_URL = "https://thunderstore.io/api/experimental/package/{namespace}/{name}/"
 PACKAGE_URL = "https://thunderstore.io/package/{namespace}/{name}/"
 
 # Thunderstore rejects the default urllib user agent with a 403.
-USER_AGENT = "autogen-rundown-dep-updater"
+USER_AGENT = "gtfo-killable-spitters-dep-updater"
 
 RETRIES = 3
 RETRY_BACKOFF = 2
@@ -198,7 +198,7 @@ def build_title(updates):
 
 def build_summary(updates, failures):
     lines = [
-        "Daily Thunderstore dependency check. "
+        "Weekly Thunderstore dependency check. "
         "Each mod is bumped to its latest published version.",
         "",
         "| Package | From | To |",
@@ -257,6 +257,11 @@ def main():
 
     if not updates:
         print(":: All dependencies are up to date")
+
+        if args.summary_file and failures:
+            with open(args.summary_file, "w", encoding="utf-8") as file:
+                file.write(build_summary(updates, failures))
+
         write_outputs(has_updates="false", count=0)
         return
 
@@ -272,7 +277,13 @@ def main():
         with open(args.summary_file, "w", encoding="utf-8") as file:
             file.write(build_summary(updates, failures))
 
-    write_outputs(has_updates="true", count=len(updates), title=title)
+    # --check leaves both files untouched, so has_updates stays false — a CI
+    # caller keying off it would otherwise try to commit a clean tree.
+    write_outputs(
+        has_updates="false" if args.check else "true",
+        count=len(updates),
+        title=title,
+    )
 
 
 if __name__ == "__main__":
