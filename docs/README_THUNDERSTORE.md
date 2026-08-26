@@ -19,19 +19,26 @@ Makes GTFO's infection spitters killable.
   spitter hit. Use `"Trigger": "Hit"` for effects that should also apply
   to spitters.)
 
-Also includes a spitter targeting fix: spitters no longer aggro onto AI bot
-teammates, and lobbies with more than 4 players are handled correctly.
+Also includes spitter bug fixes:
+
+- Spitters no longer aggro onto AI bot teammates, and lobbies with more than
+  4 players are handled correctly.
+- Mines no longer detonate the moment their laser lines up with a spitter —
+  the beam looks past spitters and still triggers on real enemies behind them.
+- Sentries using legacy detection no longer stall target acquisition while a
+  spitter sits in their detection cone.
+- Suppresses a hard crash when foaming a spitter while `DoorEnemyFixUpdated`
+  ≤ 1.1.3 is installed (that mod's glue patch crashes on spitters).
 
 ## Configuration
 
-Config file: `BepInEx/config/the_tavern-KillableSpitters.cfg` (section
-`General`)
+Config file: `BepInEx/config/the_tavern-KillableSpitters.cfg`
 
-| Setting                  | Default | Description |
-| ------------------------ | ------- | ----------- |
-| `SpitterHealth`          | `30.0`  | Health pool (drained by any damage type). Only the host's value applies. |
-| `SpitterFreezeDuration`  | `0.7`   | Seconds a C-foamed spitter stays frozen — before it dies (if `CfoamKillsSpitters` is on) or thaws (if off). Only the host's value applies. |
-| `CfoamKillsSpitters`     | `true`  | Whether C-foam kills spitters (no infection pop). Off keeps the vanilla freeze-only behavior. Only the host's value applies. |
+| Setting                  | Section   | Default | Description |
+| ------------------------ | --------- | ------- | ----------- |
+| `SpitterHealth`          | `General` | `30.0`  | Health pool (drained by any damage type). Values below `1.0` are raised to `1.0`. Only the host's value applies. |
+| `SpitterFreezeDuration`  | `C-Foam`  | `0.7`   | Seconds a C-foamed spitter stays frozen — before it dies (if `CfoamKillsSpitters` is on) or thaws (if off). Only the host's value applies. |
+| `CfoamKillsSpitters`     | `C-Foam`  | `true`  | Whether C-foam kills spitters (no infection pop). Off keeps the vanilla freeze-only behavior. Only the host's value applies. |
 
 ## Links
 
