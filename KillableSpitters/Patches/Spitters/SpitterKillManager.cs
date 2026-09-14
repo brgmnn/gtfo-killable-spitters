@@ -1183,16 +1183,33 @@ public static class SpitterKillManager
             replicator.SetState(published);
     }
 
+    /// <summary>
+    /// Replicator callback (all peers). AmorLib invokes OnStateChanged straight
+    /// from its packet handler with no try/catch of its own, and that handler
+    /// runs inside an il2cpp→managed trampoline — an escaping exception is a
+    /// hard crash, so this catches everything itself (same as
+    /// OnDeathStateChanged).
+    /// </summary>
     private static void OnHostConfigChanged(
         SpitterHostConfigState oldState, SpitterHostConfigState newState, bool isRecall)
     {
-        if (_broken || !newState.IsPublished)
-            return; // the pre-publish default carries nothing to apply
+        if (_broken)
+            return;
 
-        _hostConfig = newState;
-        Plugin.Logger.LogDebug(
-            $"[SpitterKill] Host C-foam config received (kills={newState.CfoamKills}, " +
-            $"freeze={newState.FreezeDuration}s, recall={isRecall})");
+        try
+        {
+            if (!newState.IsPublished)
+                return; // the pre-publish default carries nothing to apply
+
+            _hostConfig = newState;
+            Plugin.Logger.LogDebug(
+                $"[SpitterKill] Host C-foam config received (kills={newState.CfoamKills}, " +
+                $"freeze={newState.FreezeDuration}s, recall={isRecall})");
+        }
+        catch (Exception ex)
+        {
+            Break(ex);
+        }
     }
 
     /// <summary>

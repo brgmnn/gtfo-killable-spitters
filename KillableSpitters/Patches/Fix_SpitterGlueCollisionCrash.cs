@@ -40,8 +40,10 @@ internal static class Fix_SpitterGlueCollisionCrash
     /// <summary>One-time log for the conservative fallback when the collider probe itself fails.</summary>
     private static bool _loggedProbeFailure;
 
-    /// <summary>Whether some other mod has a patch on CollisionCheck. Null until first needed.</summary>
-    private static bool? _foreignPatchPresent;
+    /// <summary>Set once a foreign patch on CollisionCheck has been seen. Only the positive result is
+    /// cached: a "none" answer is re-checked on the next NRE so a patch applied later (a mod that
+    /// patches lazily) can never be missed and leave a spitter NRE to crash the game.</summary>
+    private static bool _foreignPatchSeen;
 
     [HarmonyPatch(typeof(GlueGunProjectile), nameof(GlueGunProjectile.CollisionCheck))]
     [HarmonyFinalizer]
@@ -93,13 +95,14 @@ internal static class Fix_SpitterGlueCollisionCrash
     }
 
     /// <summary>
-    /// True when a Harmony patch owned by anyone but this mod sits on CollisionCheck. Resolved
-    /// once; if the inspection itself fails the historical fail-safe (armed) applies.
+    /// True when a Harmony patch owned by anyone but this mod sits on CollisionCheck. A positive
+    /// answer is cached; a negative one is re-evaluated per NRE (they are rare). If the inspection
+    /// itself fails the historical fail-safe (armed) applies. Never throws.
     /// </summary>
     private static bool ForeignPatchPresent()
     {
-        if (_foreignPatchPresent is { } known)
-            return known;
+        if (_foreignPatchSeen)
+            return true;
 
         bool present;
         try
@@ -123,7 +126,7 @@ internal static class Fix_SpitterGlueCollisionCrash
                 $"suppression conservatively: {ex.Message}");
         }
 
-        _foreignPatchPresent = present;
+        _foreignPatchSeen = present;
         return present;
     }
 }
