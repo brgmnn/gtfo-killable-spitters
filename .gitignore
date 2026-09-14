@@ -3,6 +3,11 @@
 /build
 /deps
 
+# CI scratch (build.yml writes .deps.json to the root, release-assets.yml
+# downloads into _artifacts/)
+/.deps.json
+/_artifacts
+
 # Jetbrains
 /.idea
 *.DotSettings.user
