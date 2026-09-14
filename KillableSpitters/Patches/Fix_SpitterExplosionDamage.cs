@@ -36,8 +36,10 @@ namespace KillableSpitters.Patches;
 ///
 /// AssignCourseNode is a public, non-trivial method, so it is not an IL2CPP identical-code-folding
 /// hazard — unlike the trivial get_DamageTargetPos auto-getter, which we deliberately do not patch.
-/// The write is host-independent (it just conditions the state); the explosion itself is
-/// master-only (DoExplode gates on SNet.IsMaster). Despite the game's private setter, Il2CppInterop
+/// The write is host-independent (it just conditions the state); the blasts that consume it are
+/// master-only (MineDeployerInstance_Detonate_Explosive.DoExplode and GrenadeBase.GrenadeDelay gate
+/// on SNet.IsMaster; note InfectionSpitter.DoExplode does not). Despite the game's private setter,
+/// Il2CppInterop
 /// exposes set_DamageTargetPos as public, so a direct assignment compiles.
 ///
 /// Companion to Fix_SpitterMineTrigger: that patch governs mine <i>detection</i> (a spitter must

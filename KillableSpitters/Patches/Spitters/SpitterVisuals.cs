@@ -104,8 +104,10 @@ public static class SpitterVisuals
     /// <summary>
     /// Original startColor of a tinted ParticleSystem, captured BY VALUE — a
     /// stored boxed MinMaxGradient wrapper could itself be a collected object
-    /// that throws at restore time. The Gradient references are natively
-    /// rooted by the particle system's own configuration. The boxed
+    /// that throws at restore time. The Gradient references stay alive because
+    /// Il2CppInterop's GCHandle on each stored wrapper roots the native
+    /// object (the particle system's own configuration does NOT hold them
+    /// while our tint has replaced it). The boxed
     /// MainModule is cached because every ps.main call allocates IL2CPP-side;
     /// it stays valid as long as the ParticleSystem lives (it only wraps the
     /// system pointer).

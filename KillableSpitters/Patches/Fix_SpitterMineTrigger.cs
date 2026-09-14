@@ -123,8 +123,11 @@ internal static class Fix_SpitterMineTrigger
             if (!SpitterColliders.IsSpitter(hit.collider))
                 return true;                                    // a real enemy is on the beam
 
-            // Spitter: advance just past it and keep looking. The small epsilon guarantees forward
-            // progress; SphereCast then ignores this spitter because the sphere now overlaps it.
+            // Spitter: advance just past it and keep looking. The 0.2 m advance leaves the next
+            // cast's start sphere (radius BeamRadius) clear of the face we just hit, so a thin
+            // spitter collider is not re-hit; a collider thicker than that puts the start inside
+            // it, which SphereCast ignores. Either way forward progress is guaranteed and
+            // MaxLookPastSteps bounds the loop.
             var advance = hit.distance + 0.2f;
             origin += dir * advance;
             remaining -= advance;

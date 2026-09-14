@@ -37,10 +37,12 @@ namespace KillableSpitters.Patches;
 ///    call the cached vtable methodPtr directly.
 /// Hardcoded native direct calls to the folded body are not covered — audited:
 /// vanilla never direct-calls GetHealthRel on a spitter (all other callers are
-/// player-damage reads). The one interface-dispatch consumer that can now see
-/// a live spitter — sentry legacy detection — IS covered by the vtable
-/// rewrite; the scan-termination bug that surfaces once spitters report
-/// health is fixed separately in Fix_SpitterSentryTarget.
+/// player-damage reads). The one vanilla interface-dispatch consumer that can
+/// see a live spitter — sentry legacy detection — no longer reaches the vtable
+/// at all: Fix_SpitterSentryTarget replaces that scan with managed code that
+/// calls GetHealthRel through the interop proxy (the methodPointer path). The
+/// vtable rewrite stays as defense in depth for any other native interface
+/// call site, so a "0 slots rewritten" warning below is informational.
 ///
 /// The replacement (HealthRelThunk) is called from native code with the
 /// il2cpp instance-method ABI (this, MethodInfo*). It must never throw and
