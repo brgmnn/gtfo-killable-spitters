@@ -12,8 +12,12 @@
 /.idea
 *.DotSettings.user
 
+# Build artifacts
 **/bin
 **/obj
+
+# Python
+**/__pycache__
 
 # MacOS and zip files
 /*.zip
