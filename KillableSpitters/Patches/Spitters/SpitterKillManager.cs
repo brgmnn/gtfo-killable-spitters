@@ -2,6 +2,7 @@ using AmorLib.Networking.StateReplicators;
 using KillableSpitters.Events;
 using GTFO.API;
 using GTFO.API.Resources;
+using Il2CppInterop.Runtime;
 using SNetwork;
 
 namespace KillableSpitters.Patches.Spitters;
@@ -47,10 +48,14 @@ namespace KillableSpitters.Patches.Spitters;
 /// SpitterFreezeDuration / CfoamKillsSpitters values drive damage accumulation
 /// and the death decision, which run exclusively on the host. Clients always
 /// send damage reports, always apply replicated death states, and the
-/// dead-guards always apply so dead spitters stay dead everywhere. The freeze
-/// override for non-lethal C-foam (see OnSpitterGlued) is the one per-peer
-/// exception. The feature itself has no on/off toggle — installing the mod is
-/// the opt-in.
+/// dead-guards always apply so dead spitters stay dead everywhere. The two
+/// C-foam values are also needed on every peer (the non-lethal freeze
+/// override is a per-peer local timer, and the lethal path must keep the
+/// vanilla freeze so the foam death stays pop-less), so the host publishes
+/// them once per level through a small replicated config state
+/// (SpitterHostConfigState; AmorLib syncs late joiners). Until that state
+/// has arrived a peer leaves glue fully vanilla. The feature itself has no
+/// on/off toggle — installing the mod is the opt-in.
 ///
 /// Death sequence ("pops on every hit + death pop"): Patch_SpitterDamage
 /// removes the vanilla 5s damage-pop cooldown, so sustained fire pops the
@@ -73,8 +78,10 @@ namespace KillableSpitters.Patches.Spitters;
 /// the ManagerUpdate gate.
 ///
 /// Failure mode: any unexpected exception permanently flips _broken and the
-/// feature degrades to pure vanilla behavior locally (guards return "run
-/// original", reports stop). Host migration is out of scope (the mod has no
+/// feature degrades to pure vanilla behavior locally: guards return "run
+/// original", the OnIncomingDamage replacement steps aside (IsBroken) so the
+/// vanilla pop cooldown returns, and reports stop. Host migration is out of
+/// scope (the mod has no
 /// host-migration handling anywhere): already-replicated deaths persist on
 /// every peer, in-progress health pools reset under a new host.
 /// </summary>
@@ -97,6 +104,10 @@ public static class SpitterKillManager
     private const int SHARD_COUNT = 4;
 
     public const int SpitterCapacity = SHARD_COUNT * SpitterDeathState.SpittersPerShard;
+
+    /// <summary>Replicator ID of the host's C-foam config (see
+    /// SpitterHostConfigState): the slot right after the death shards.</summary>
+    private const uint CONFIG_REPLICATOR_ID = REPLICATOR_BASE_ID + SHARD_COUNT;
 
     /// <summary>Delay after the death pop completes before deactivation, so the
     /// spit FX/audio land naturally.</summary>
@@ -174,9 +185,9 @@ public static class SpitterKillManager
     private static readonly HashSet<ushort> _modelHidden = new();
 
     /// <summary>HOST only: Clock.Time each live spitter was first C-foamed;
-    /// TickGlueKill kills it Config_SpitterFreezeDuration later (the first
+    /// TickGlueKill kills it _hostConfig.FreezeDuration later (the first
     /// foam wins, re-foams don't reset the clock). Only populated when
-    /// Config_CfoamKillsSpitters is on.</summary>
+    /// CfoamKillsSpitters is on.</summary>
     private static readonly Dictionary<ushort, float> _gluedAt = new();
 
     /// <summary>ALL peers: native pointer of each spitter's damage component
@@ -196,6 +207,15 @@ public static class SpitterKillManager
     /// <summary>Per-shard OnStateChanged handlers, stored for unsubscribe.</summary>
     private static readonly Action<SpitterDeathState, SpitterDeathState, bool>?[] _handlers =
         new Action<SpitterDeathState, SpitterDeathState, bool>?[SHARD_COUNT];
+
+    private static StateReplicator<SpitterHostConfigState>? _configReplicator;
+
+    private static Action<SpitterHostConfigState, SpitterHostConfigState, bool>? _configHandler;
+
+    /// <summary>ALL peers: the host's C-foam settings for this level, as
+    /// published through the config replicator. Default (IsPublished false)
+    /// until the host's state lands — glue stays vanilla meanwhile.</summary>
+    private static SpitterHostConfigState _hostConfig;
 
     /// <summary>
     /// Wired to GameDataAPI.OnGameDataInitialized in Plugin. NetworkAPI event
@@ -219,6 +239,13 @@ public static class SpitterKillManager
     }
 
     #region Patch entry points
+
+    /// <summary>
+    /// True once Break has flipped the permanent local kill-switch. Patches
+    /// that REPLACE a vanilla body (rather than merely guard it) must check
+    /// this and run the original, so degraded mode really is vanilla.
+    /// </summary>
+    public static bool IsBroken => _broken;
 
     /// <summary>
     /// True when the spitter is dead or currently dying. Patch guards use this
@@ -453,9 +480,10 @@ public static class SpitterKillManager
     /// <summary>
     /// Called from the InfectionSpitter.DoGetGlued postfix, which fires on
     /// every peer for any foaming (local trigger or vanilla packet). Applies
-    /// the configured freeze behavior: if C-foam kills, the HOST starts the
-    /// kill clock; otherwise every peer overrides the vanilla ~240s freeze with
-    /// Config_SpitterFreezeDuration so the spitter thaws after that time.
+    /// the HOST's freeze behavior (_hostConfig): if C-foam kills, the HOST
+    /// starts the kill clock; otherwise every peer overrides the vanilla ~240s
+    /// freeze with the host's FreezeDuration so the spitter thaws after that
+    /// time.
     /// </summary>
     public static void OnSpitterGlued(InfectionSpitter spitter)
     {
@@ -475,25 +503,35 @@ public static class SpitterKillManager
             if (IsDeadOrDying(index))
                 return;
 
-            if (Plugin.Config_CfoamKillsSpitters)
+            // The HOST's values, never this peer's own config: a client that
+            // read its own CfoamKillsSpitters here would shorten a freeze the
+            // host is about to turn into a kill (vanilla clears m_isGlued once
+            // m_stayInTimer < 5, so that client would take the full infection
+            // pop where everyone else sees the silent foam death), or sit
+            // through the vanilla 240s while everyone else thaws.
+            if (!_hostConfig.IsPublished)
+                return; // host config not here yet (or never): vanilla glue
+
+            if (_hostConfig.CfoamKills)
             {
-                // HOST: kill the spitter Config_SpitterFreezeDuration after it
-                // was foamed (first foam wins; re-foams don't reset the clock).
-                // We deliberately leave m_stayInTimer at the vanilla 240 here:
-                // the spitter must stay frozen (and keep m_isGlued true) until
-                // the replicated death lands, or Update clears m_isGlued at
-                // m_stayInTimer < 5 (decompile InfectionSpitter.cs:513-520) and
-                // the kill loses its pop-less foam death (KillSpitter case (c)).
+                // HOST: kill the spitter FreezeDuration after it was foamed
+                // (first foam wins; re-foams don't reset the clock). We
+                // deliberately leave m_stayInTimer at the vanilla 240 here, on
+                // EVERY peer: the spitter must stay frozen (and keep m_isGlued
+                // true) until the replicated death lands, or Update clears
+                // m_isGlued at m_stayInTimer < 5 (decompile
+                // InfectionSpitter.cs:513-520) and the kill loses its pop-less
+                // foam death (KillSpitter case (c)).
                 if (SNet.IsMaster)
                     _gluedAt.TryAdd(index, Clock.Time);
             }
             else
             {
-                // No kill: shorten the vanilla ~240s freeze to the configured
+                // No kill: shorten the vanilla ~240s freeze to the host's
                 // duration on every peer (the freeze is a per-peer local
                 // retract; m_stayInTimer counts down in ManagerUpdate and thaws
                 // to Woke at < 0 — decompile InfectionSpitter.cs:237-249).
-                spitter.m_stayInTimer = Math.Max(0f, Plugin.Config_SpitterFreezeDuration);
+                spitter.m_stayInTimer = _hostConfig.FreezeDuration;
             }
         }
         catch (Exception ex)
@@ -523,7 +561,7 @@ public static class SpitterKillManager
             return;
         }
 
-        if (Clock.Time - gluedAt < Plugin.Config_SpitterFreezeDuration)
+        if (Clock.Time - gluedAt < _hostConfig.FreezeDuration)
             return;
 
         _gluedAt.Remove(index);
@@ -666,7 +704,10 @@ public static class SpitterKillManager
     /// can tint its glow. No broadcast on the killing blow — the replicated
     /// death state drives the death visuals. The broadcast does not loop back
     /// to the sender, so the host applies locally via a direct handler call
-    /// (LogArchivistManager precedent).
+    /// (LogArchivistManager precedent). Sent on the non-critical channel: it
+    /// fires once per non-lethal hit and is purely cosmetic, so it must not
+    /// head-of-line-block the reliable-ordered channel that carries the damage
+    /// reports and death states (GTFO-API's default is GameOrderCritical).
     /// </summary>
     private static void BroadcastHealth(ushort index, float health)
     {
@@ -676,7 +717,7 @@ public static class SpitterKillManager
             HealthRel = Math.Clamp(health / Math.Max(1f, Plugin.Config_SpitterHealth), 0f, 1f),
         };
 
-        NetworkAPI.InvokeEvent(HealthEventName, data);
+        NetworkAPI.InvokeEvent(HealthEventName, data, SNet_ChannelType.GameNonCritical);
         OnHealthEventReceived(0uL, data);
     }
 
@@ -860,37 +901,63 @@ public static class SpitterKillManager
     /// <summary>
     /// Visually removes a dying spitter the moment its death burst plays:
     /// renderer and glow light off, damage proxy deactivated (no invisible
-    /// shot-blocker). The spitter's own GameObject stays active — its Update
-    /// drives finalization — so the sound cleanup and FX tint restore keep
-    /// their full grace period behind an already-invisible model.
+    /// shot-blocker, when m_damage sits on its own child GameObject). The
+    /// spitter's own GameObject stays active — its Update drives finalization
+    /// — so the sound cleanup and FX tint restore keep their full grace period
+    /// behind an already-invisible model.
     /// </summary>
     private static void HideSpitterModel(ushort index, InfectionSpitter spitter)
-    {
-        _modelHidden.Add(index);
-
-        if (spitter.m_renderer != null)
-            spitter.m_renderer.enabled = false;
-
-        if (spitter.m_light != null)
-            spitter.m_light.enabled = false;
-
-        if (spitter.m_damage != null && spitter.m_damage.gameObject != spitter.gameObject)
-            spitter.m_damage.gameObject.SetActive(false);
-    }
+        => SetModelVisible(index, spitter, visible: false);
 
     /// <summary>Reverses HideSpitterModel (checkpoint revive, Break).</summary>
     private static void ShowSpitterModel(ushort index, InfectionSpitter spitter)
+        => SetModelVisible(index, spitter, visible: true);
+
+    /// <summary>
+    /// Each field read below materialises an Il2CppInterop wrapper, and this
+    /// runs exactly at pop frames (peak GC pressure) where IL2CPP's Boehm GC
+    /// can collect that wrapper before its GCHandle attaches
+    /// (ObjectCollectedException — see the SpitterVisuals header). The race
+    /// is transient and per element, so each element is guarded on its own
+    /// and skipped on a miss: a renderer left visible for a frame is
+    /// cosmetic, whereas letting the exception reach Break is permanent.
+    /// </summary>
+    private static void SetModelVisible(ushort index, InfectionSpitter spitter, bool visible)
     {
-        _modelHidden.Remove(index);
+        if (visible)
+            _modelHidden.Remove(index);
+        else
+            _modelHidden.Add(index);
 
-        if (spitter.m_renderer != null)
-            spitter.m_renderer.enabled = true;
+        try
+        {
+            if (spitter.m_renderer != null)
+                spitter.m_renderer.enabled = visible;
+        }
+        catch (ObjectCollectedException)
+        {
+            // Transient IL2CPP GC race — skip this element.
+        }
 
-        if (spitter.m_light != null)
-            spitter.m_light.enabled = true;
+        try
+        {
+            if (spitter.m_light != null)
+                spitter.m_light.enabled = visible;
+        }
+        catch (ObjectCollectedException)
+        {
+            // Transient IL2CPP GC race — skip this element.
+        }
 
-        if (spitter.m_damage != null && spitter.m_damage.gameObject != spitter.gameObject)
-            spitter.m_damage.gameObject.SetActive(true);
+        try
+        {
+            if (spitter.m_damage != null && spitter.m_damage.gameObject != spitter.gameObject)
+                spitter.m_damage.gameObject.SetActive(visible);
+        }
+        catch (ObjectCollectedException)
+        {
+            // Transient IL2CPP GC race — skip this element.
+        }
     }
 
     /// <summary>
@@ -1067,6 +1134,7 @@ public static class SpitterKillManager
                 _replicators[i] = replicator;
             }
 
+            CreateConfigReplicator();
             RegisterDamagePointers();
 
             Plugin.Logger.LogDebug(
@@ -1077,6 +1145,54 @@ public static class SpitterKillManager
         {
             Break(ex);
         }
+    }
+
+    /// <summary>
+    /// Publishes the host's C-foam settings to every peer (see
+    /// SpitterHostConfigState). Same lifecycle as the death shards: created
+    /// here, unloaded at cleanup, late joiners receive it through AmorLib's
+    /// recall handshake. The host seeds its own copy directly so its kill
+    /// clock never depends on the replicator (SetState does echo locally, but
+    /// a failed Create must not leave the host itself vanilla).
+    /// </summary>
+    private static void CreateConfigReplicator()
+    {
+        var published = SpitterHostConfigState.FromHostConfig();
+
+        if (SNet.IsMaster)
+            _hostConfig = published;
+
+        var replicator = StateReplicator<SpitterHostConfigState>.Create(
+            CONFIG_REPLICATOR_ID,
+            default,
+            LifeTimeType.Session);
+
+        if (replicator == null)
+        {
+            Plugin.Logger.LogError(
+                "[SpitterKill] Failed to create the host-config replicator; clients keep vanilla glue");
+            return;
+        }
+
+        Action<SpitterHostConfigState, SpitterHostConfigState, bool> handler = OnHostConfigChanged;
+        replicator.OnStateChanged += handler;
+        _configHandler = handler;
+        _configReplicator = replicator;
+
+        if (SNet.IsMaster)
+            replicator.SetState(published);
+    }
+
+    private static void OnHostConfigChanged(
+        SpitterHostConfigState oldState, SpitterHostConfigState newState, bool isRecall)
+    {
+        if (_broken || !newState.IsPublished)
+            return; // the pre-publish default carries nothing to apply
+
+        _hostConfig = newState;
+        Plugin.Logger.LogDebug(
+            $"[SpitterKill] Host C-foam config received (kills={newState.CfoamKills}, " +
+            $"freeze={newState.FreezeDuration}s, recall={isRecall})");
     }
 
     /// <summary>
@@ -1138,6 +1254,16 @@ public static class SpitterKillManager
             _replicators[i] = null;
             _handlers[i] = null;
         }
+
+        if (_configReplicator != null)
+        {
+            if (_configHandler != null)
+                _configReplicator.OnStateChanged -= _configHandler;
+
+            _configReplicator.Unload();
+            _configReplicator = null;
+            _configHandler = null;
+        }
     }
 
     private static void ClearRuntimeState()
@@ -1154,6 +1280,7 @@ public static class SpitterKillManager
         _modelHidden.Clear();
         _gluedAt.Clear();
         _damagePtrToIndex.Clear();
+        _hostConfig = default;
         _warnedCapacity = false;
 
         // Pool instances outlive the level — never leave a tint behind.

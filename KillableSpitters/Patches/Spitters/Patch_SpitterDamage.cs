@@ -72,7 +72,10 @@ internal static class Patch_SpitterDamage
     /// Pop behavior is unchanged: vanilla gates damage pops behind a 5s cooldown
     /// (m_damageExplodeTimer, InfectionSpitter.cs:337-347); this replaces the
     /// body without it, so sustained fire keeps popping the spitter until it
-    /// dies. DoExplode's own m_isExploding re-entry guard paces the pops to one
+    /// dies. That trade is only valid while the spitter CAN die: after Break,
+    /// or for an over-capacity index, the prefix steps aside and the vanilla
+    /// body (cooldown included) runs. DoExplode's own m_isExploding re-entry
+    /// guard paces the pops to one
     /// per wind-up cycle, and the m_isExploding skip below also avoids
     /// re-broadcasting the vanilla explode packet for every hit landing
     /// mid-wind-up (the hit still counts). Pops are triggered on the shooter's
@@ -89,6 +92,14 @@ internal static class Patch_SpitterDamage
     {
         try
         {
+            // Broken or over-capacity: run vanilla unchanged, INCLUDING its 5s
+            // damage-pop cooldown. This prefix must never strip that cooldown
+            // from a spitter the manager can no longer kill — that would be a
+            // spitter that pops every wind-up cycle forever, strictly worse
+            // than vanilla.
+            if (SpitterKillManager.IsBroken || __instance.m_spitterIndex >= SpitterKillManager.SpitterCapacity)
+                return true;
+
             // Dead/dying spitters must not take damage or trigger further pops.
             if (SpitterKillManager.IsDeadOrDying(__instance.m_spitterIndex))
                 return false;
@@ -132,11 +143,18 @@ internal static class Patch_SpitterDamage
 
     /// <summary>
     /// Dead-guard for glue: DoGetGlued's long timed retract would fight the
-    /// death pop's state on a dying spitter.
+    /// death pop's state on a dying spitter. Guarded here, not on
+    /// OnIncomingGlue — that is a one-call forwarder (`=> SendGlued()`,
+    /// decompile InfectionSpitter.cs:349) and therefore off-limits under the
+    /// ICF house rule in the class header. DoGetGlued is public with a unique
+    /// four-statement body and is the single sink for both the local
+    /// (SendGlued) and the packet (ReceiveDamage) glue paths. SendGlued still
+    /// emits its glue packet for a dying spitter; remote peers drop it in
+    /// Pre_ReceiveDamage.
     /// </summary>
-    [HarmonyPatch(typeof(InfectionSpitter), nameof(InfectionSpitter.OnIncomingGlue))]
+    [HarmonyPatch(typeof(InfectionSpitter), nameof(InfectionSpitter.DoGetGlued))]
     [HarmonyPrefix]
-    public static bool Pre_OnIncomingGlue(InfectionSpitter __instance)
+    public static bool Pre_DoGetGlued(InfectionSpitter __instance)
     {
         try
         {

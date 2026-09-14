@@ -19,6 +19,11 @@ namespace KillableSpitters.Patches;
 /// receives that exception regardless of mod load order; we swallow it only for the spitter case and
 /// re-throw anything else unchanged. The real fix belongs upstream in DoorEnemyFixUpdated.
 ///
+/// Armed only when needed: the suppression checks once (lazily, on the first NRE, by which time
+/// every plugin has loaded) whether any OTHER mod actually has a Harmony patch on CollisionCheck.
+/// With none present an NRE here is something genuinely new and is surfaced unchanged rather than
+/// hidden behind this workaround.
+///
 /// CollisionCheck has a large, unique body (not an ICF-foldable forwarder), so patching it is safe
 /// per the mod's identical-code-folding rule.
 ///
@@ -35,12 +40,20 @@ internal static class Fix_SpitterGlueCollisionCrash
     /// <summary>One-time log for the conservative fallback when the collider probe itself fails.</summary>
     private static bool _loggedProbeFailure;
 
+    /// <summary>Whether some other mod has a patch on CollisionCheck. Null until first needed.</summary>
+    private static bool? _foreignPatchPresent;
+
     [HarmonyPatch(typeof(GlueGunProjectile), nameof(GlueGunProjectile.CollisionCheck))]
     [HarmonyFinalizer]
     public static Exception? Finalize_CollisionCheck(GlueGunProjectile __instance, Exception? __exception)
     {
         // Pass through the no-exception path and anything that isn't the class we neutralize.
         if (!(__exception is NullReferenceException))
+            return __exception;
+
+        // Nobody else patches CollisionCheck: this NRE isn't the known foreign-postfix bug, and
+        // vanilla can't throw it, so it must surface — never hide an unknown crash.
+        if (!ForeignPatchPresent())
             return __exception;
 
         bool hitSpitter;
@@ -55,9 +68,11 @@ internal static class Fix_SpitterGlueCollisionCrash
             if (!_loggedProbeFailure)
             {
                 _loggedProbeFailure = true;
-                Plugin.Logger.LogWarning(
-                    "[SpitterGlueCollisionCrash] Could not identify the glue collision target, " +
-                    $"suppressing the NullReferenceException conservatively: {ex.Message}");
+                Plugin.Logger.LogError(
+                    "[SpitterGlueCollisionCrash] Could not identify the glue collision target; " +
+                    "suppressing this and every later NullReferenceException on " +
+                    "GlueGunProjectile.CollisionCheck conservatively — a real crash may be hidden " +
+                    $"behind this until the probe works again: {ex}");
             }
         }
 
@@ -75,5 +90,40 @@ internal static class Fix_SpitterGlueCollisionCrash
         }
 
         return null; // swallow
+    }
+
+    /// <summary>
+    /// True when a Harmony patch owned by anyone but this mod sits on CollisionCheck. Resolved
+    /// once; if the inspection itself fails the historical fail-safe (armed) applies.
+    /// </summary>
+    private static bool ForeignPatchPresent()
+    {
+        if (_foreignPatchPresent is { } known)
+            return known;
+
+        bool present;
+        try
+        {
+            var original = AccessTools.Method(typeof(GlueGunProjectile), nameof(GlueGunProjectile.CollisionCheck));
+            var owners = (original != null ? Harmony.GetPatchInfo(original)?.Owners : null)
+                ?.Where(owner => owner != Plugin.Name)
+                .ToList() ?? new List<string>();
+
+            present = owners.Count > 0;
+            Plugin.Logger.LogDebug(present
+                ? "[SpitterGlueCollisionCrash] Foreign CollisionCheck patch owner(s): " +
+                  $"{string.Join(", ", owners)} — spitter NRE suppression armed"
+                : "[SpitterGlueCollisionCrash] No foreign CollisionCheck patch — spitter NRE suppression disarmed");
+        }
+        catch (Exception ex)
+        {
+            present = true;
+            Plugin.Logger.LogWarning(
+                "[SpitterGlueCollisionCrash] Could not inspect CollisionCheck patches, arming the " +
+                $"suppression conservatively: {ex.Message}");
+        }
+
+        _foreignPatchPresent = present;
+        return present;
     }
 }

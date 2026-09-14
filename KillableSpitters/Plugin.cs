@@ -13,7 +13,10 @@ namespace KillableSpitters;
 [BepInPlugin(Name, "KillableSpitters", Version)]
 [BepInProcess("GTFO.exe")]
 [BepInDependency("dev.gtfomodding.gtfo-api")]
-[BepInDependency("Amor.AmorLib")]
+// Floor = the lowest AmorLib every release has pinned (v0.1.0 onward), so a
+// too-old install fails loudly at load instead of with a MissingMethodException
+// mid-level. The Thunderstore manifest pins the exact tested version.
+[BepInDependency("Amor.AmorLib", ">=1.2.2")]
 [BepInDependency(EWCCompat.PluginGuid, BepInDependency.DependencyFlags.SoftDependency)]
 public class Plugin : BasePlugin
 {
