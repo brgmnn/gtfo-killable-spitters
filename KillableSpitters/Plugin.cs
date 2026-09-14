@@ -20,7 +20,7 @@ namespace KillableSpitters;
 [BepInDependency(EWCCompat.PluginGuid, BepInDependency.DependencyFlags.SoftDependency)]
 public class Plugin : BasePlugin
 {
-    public const string Version = "1.1.0";
+    public const string Version = "1.2.0";
 
     public const string Name = "the_tavern-KillableSpitters";
 
