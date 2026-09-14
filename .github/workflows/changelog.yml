@@ -27,5 +27,9 @@ jobs:
       - name: Commit CHANGELOG
         run: |
           git add CHANGELOG.md
+          if git diff --quiet --cached; then
+            echo ":: CHANGELOG.md unchanged, nothing to commit";
+            exit 0;
+          fi
           git commit -m "Update CHANGELOG.md"
           git push origin main

@@ -30,11 +30,27 @@ jobs:
       - name: Get build run
         id: get-build
         run: |
-          echo "build_id=$(gh run list -w 'Build .NET' --limit 1 --status completed --branch main --json databaseId -q '.[].databaseId')" >> "$GITHUB_OUTPUT"
+          if [ -z "${{ github.event.inputs.version }}" ]; then
+            # Draft flow: the newest SUCCESSFUL main build ("completed" would
+            # also match failed runs).
+            build_id=$(gh run list -w 'Build .NET' --limit 1 --status success --branch main --json databaseId -q '.[].databaseId')
+          else
+            # Explicit version: the successful build of that tag's own commit,
+            # so a release never gets whatever main has moved on to since.
+            sha=$(gh api "/repos/${{ github.repository }}/commits/${{ steps.get-version.outputs.release }}" -q .sha)
+            build_id=$(gh run list -w 'Build .NET' --limit 1 --status success --commit "$sha" --json databaseId -q '.[].databaseId')
+          fi
+
+          if [ -z "$build_id" ]; then
+            echo "::error::No successful 'Build .NET' run found for ${{ steps.get-version.outputs.release }}"
+            exit 1
+          fi
+
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
 
       - name: Download artifacts
         run: |
-          artifacts=$(gh api /repos/brgmnn/gtfo-killable-spitters/actions/runs/${{ steps.get-build.outputs.build_id }}/artifacts | jq -c '.artifacts[]')
+          artifacts=$(gh api /repos/${{ github.repository }}/actions/runs/${{ steps.get-build.outputs.build_id }}/artifacts | jq -c '.artifacts[]')
 
           # Create temporary directory for handling artifacts
           mkdir -p ${{ github.workspace }}/_artifacts && cd ${{ github.workspace }}/_artifacts

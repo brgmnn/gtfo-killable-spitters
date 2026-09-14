@@ -8,15 +8,20 @@ follow semver, so there is no version range logic here.
 
 Usage:
     ./update-dependencies.py [--check] [--summary-file PATH]
+    ./update-dependencies.py --check-versions [TAG]
 
     --check           Report available updates without writing any files.
     --summary-file    Write a markdown summary (used as the PR body in CI).
+    --check-versions  Only verify that Plugin.cs, manifest.json and
+                      thunderstore.toml declare the same mod version (and match
+                      TAG, e.g. a release tag, when given). No network access.
 
 When $GITHUB_OUTPUT is set, `has_updates`, `count` and `title` are written to it.
 
 Exit codes:
     0  Success (with or without updates found).
-    1  manifest.json and thunderstore.toml disagree, or every API lookup failed.
+    1  manifest.json and thunderstore.toml disagree, the mod version
+       declarations disagree (--check-versions), or every API lookup failed.
 """
 
 import argparse
@@ -40,6 +45,7 @@ RETRY_BACKOFF = 2
 ROOT = os.path.dirname(os.path.abspath(__file__))
 MANIFEST = os.path.join(ROOT, "manifest.json")
 TOML = os.path.join(ROOT, "thunderstore.toml")
+PLUGIN_CS = os.path.join(ROOT, "KillableSpitters", "Plugin.cs")
 
 
 def read_toml_dependencies(text):
@@ -89,6 +95,47 @@ def check_files_agree(toml_deps, manifest_deps):
             "error: manifest.json and thunderstore.toml disagree:\n"
             + "\n".join(sorted(errors))
         )
+
+
+def read_mod_versions():
+    """Return {source: version} for every place the mod's own version is declared."""
+    with open(MANIFEST, encoding="utf-8") as file:
+        manifest_version = json.load(file)["version_number"]
+
+    with open(TOML, encoding="utf-8") as file:
+        toml_match = re.search(r'^\s*versionNumber\s*=\s*"([^"]+)"', file.read(), re.M)
+
+    if toml_match is None:
+        sys.exit("error: thunderstore.toml has no versionNumber")
+
+    with open(PLUGIN_CS, encoding="utf-8") as file:
+        plugin_match = re.search(r'const string Version\s*=\s*"([^"]+)"', file.read())
+
+    if plugin_match is None:
+        sys.exit("error: Plugin.cs has no `const string Version`")
+
+    return {
+        "manifest.json": manifest_version,
+        "thunderstore.toml": toml_match.group(1),
+        "KillableSpitters/Plugin.cs": plugin_match.group(1),
+    }
+
+
+def check_versions(expected=None):
+    """Every declared mod version agrees (and matches `expected`, e.g. a release tag)."""
+    versions = read_mod_versions()
+
+    if expected is not None:
+        versions["expected (tag)"] = expected.lstrip("v")
+
+    if len(set(versions.values())) > 1:
+        sys.exit(
+            "error: mod version declarations disagree:\n"
+            + "\n".join(f"  {source}: {version}" for source, version in versions.items())
+        )
+
+    version = next(iter(versions.values()))
+    print(f":: Mod version {version} is consistent across {', '.join(versions)}")
 
 
 def fetch_package(namespace, name):
@@ -239,7 +286,18 @@ def main():
         "--check", action="store_true", help="report updates without writing files"
     )
     parser.add_argument("--summary-file", help="write a markdown summary to this path")
+    parser.add_argument(
+        "--check-versions",
+        nargs="?",
+        const="",
+        metavar="TAG",
+        help="only verify the mod version declarations agree (and match TAG if given)",
+    )
     args = parser.parse_args()
+
+    if args.check_versions is not None:
+        check_versions(args.check_versions or None)
+        return
 
     with open(TOML, encoding="utf-8") as file:
         toml_deps = read_toml_dependencies(file.read())
