@@ -16,6 +16,15 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- Assembly/file/informational version follow the packaged manifest, so
+         the DLL metadata never says 1.0.0.0 while [BepInPlugin] says
+         otherwise. The version check in update-dependencies.py (run by CI)
+         keeps manifest.json, thunderstore.toml and Plugin.Version in step.
+         Read relative to the project, not $(SolutionDir), so it also works
+         when the csproj is built directly. -->
+    <ManifestJson>$([System.IO.File]::ReadAllText($([System.IO.Path]::Combine($(MSBuildProjectDirectory), '..', 'manifest.json'))))</ManifestJson>
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($(ManifestJson), '"version_number"\s*:\s*"([^"]+)"').Result('$1'))</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="$(Debug) != 'false'">

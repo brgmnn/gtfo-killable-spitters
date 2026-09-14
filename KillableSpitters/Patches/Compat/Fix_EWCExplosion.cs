@@ -21,11 +21,12 @@ namespace KillableSpitters.Patches.Compat;
 /// damage through the vanilla IDamageable.ExplosionDamage forwarder — i.e.
 /// into InfectionSpitter.OnIncomingDamage and this mod's existing funnel
 /// (pop + host health report, per-hit clamp included), exactly like a vanilla
-/// explosion hit. Damage mirrors EWC's own falloff for enemy targets
+/// explosion hit. Damage mirrors EWC's own scaling for enemy targets
 /// (distance.MapInverted(InnerRadius, Radius, MaxDamage, MinDamage, Exponent)
-/// * triggerAmt — EWC ExplosionManager.cs:116-118, replicated locally rather
-/// than calling EWC internals), with the same world-geometry line-of-sight
-/// gate vanilla explosions use.
+/// * triggerAmt * falloffMod — EWC ExplosionManager.SendExplosionDamage,
+/// replicated locally rather than calling EWC internals; EWC's per-shot stat
+/// mods are not applied), with the same world-geometry line-of-sight gate
+/// vanilla explosions use.
 ///
 /// DoExplosionDamage runs exactly once per explosion, on the client that owns
 /// the shot (gated upstream on the locally-managed owner; EWC's sync path
@@ -56,7 +57,11 @@ internal static class Fix_EWCExplosion
         _applied = true;
     }
 
-    public static void Post_DoExplosionDamage(Vector3 position, Explosive explosiveBase, float triggerAmt)
+    // Harmony binds these by parameter name, so the postfix survives EWC
+    // adding parameters (4.13 grew DoExplosionDamage to six) as long as these
+    // three keep their names.
+    public static void Post_DoExplosionDamage(
+        Vector3 position, float falloffMod, Explosive explosiveBase, float triggerAmt)
     {
         if (_broken)
             return;
@@ -100,7 +105,11 @@ internal static class Fix_EWCExplosion
                 var damage = MapInverted(
                     Vector3.Distance(position, point),
                     explosiveBase.InnerRadius, radius, maxDamage, minDamage, explosiveBase.Exponent);
-                damage *= triggerAmt;
+                // The same two scalars EWC applies to every enemy hit: the
+                // trigger amount and the shot's own falloff (1 when
+                // IgnoreFalloff). EWC's per-shot stat mods (WeaponStatContext,
+                // External/InnateDamageMod) are deliberately not replicated.
+                damage *= triggerAmt * falloffMod;
 
                 if (damage <= 0f)
                     continue;

@@ -112,6 +112,8 @@ internal static class Fix_EWCFoam
 
         try
         {
+            HashSet<IntPtr>? gluedSpitters = null;
+
             foreach (var tContext in triggerList)
             {
                 if (tContext.context is not WeaponHitDamageableContextBase damContext)
@@ -122,6 +124,14 @@ internal static class Fix_EWCFoam
 
                 var damageable = damContext.Damageable?.TryCast<InfectionSpitterDamage>();
                 if (damageable == null)
+                    continue;
+
+                // A spitter exposes several colliders and EWC accumulates one
+                // context per hit, so a shotgun / burst lands K contexts on one
+                // spitter. One OnIncomingGlue per spitter per apply — each call
+                // is a replicated SendGlued (packet + foam sound on every peer).
+                gluedSpitters ??= new HashSet<IntPtr>();
+                if (!gluedSpitters.Add(damageable.Pointer))
                     continue;
 
                 var spitter = damageable.m_spitter;
