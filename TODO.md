@@ -95,6 +95,14 @@ Deferred work and known limitations. Fixed items get removed, not checked off.
       without forcing the interop type's class ctor — handled by `WarnAborted`,
       but the symptom would be silent loss of EWC projectile/DoT support.
 - [ ] `SpitterDeathState.ShardIndex` is transmitted and never checked.
+- [ ] Host-config replicator vs. AmorLib recall snapshots: `RestoreSnapshot`
+      (host-only) reinstates whatever `State` was captured at buffer time. A
+      capture taken before the host's first `SetState` holds the unpublished
+      default; restoring it makes later drop-ins receive that default and
+      stay on vanilla glue. In `OnHostConfigChanged`, when
+      `SNet.IsMaster && isRecall && !newState.IsPublished`, re-`SetState`
+      with `SpitterHostConfigState.FromHostConfig()`. `StateReplicator<S>.State`
+      is public in AmorLib if a "published" check is preferred over a flag.
 
 ## Accepted limitations (documented in code, revisit if they start to matter)
 
