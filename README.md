@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fthunderstore.io%2Fapi%2Fexperimental%2Fpackage%2Fthe_tavern%2FKillableSpitters%2F&query=%24.latest.version_number&style=flat&label=version&color=%2300aaff&cacheSeconds=10800)
 ![Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fthunderstore.io%2Fapi%2Fv1%2Fpackage-metrics%2Fthe_tavern%2FKillableSpitters%2F&query=%24.downloads&suffix=%20downloads&style=flat&label=GTFO&color=%23c32918&cacheSeconds=10800)
-![Thunderstore Likes](https://img.shields.io/thunderstore/likes/the_tavern/KillableSpitters?style=flat&cacheSeconds=10800)
+![Thunderstore Likes](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fthunderstore.io%2Fapi%2Fv1%2Fpackage-metrics%2Fthe_tavern%2FKillableSpitters%2F&query=%24.rating_score&style=flat&label=likes&color=%2324ffab&cacheSeconds=10800)
 
 A GTFO mod that makes infection spitters killable. Shoot them, melee them, blow
 them up, or kill them with C-foam. Spitters explode on death with the flyer
