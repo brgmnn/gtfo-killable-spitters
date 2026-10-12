@@ -5,6 +5,6 @@
   "description": "Spitters can now be killed. Shoot them down or C-foam them. Deaths are host-authoritative and synced to all players.",
   "dependencies": [
     "BepInEx-BepInExPack_GTFO-3.2.3",
-    "Amorously-AmorLib-1.2.7"
+    "Amorously-AmorLib-1.2.8"
   ]
 }
