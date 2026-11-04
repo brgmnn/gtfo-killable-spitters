@@ -15,10 +15,6 @@ Deferred work and known limitations. Fixed items get removed, not checked off.
 
 ## Tooling
 
-- [ ] Extend `update-dependencies.py` to also refresh the checked-in reference
-      DLLs in `KillableSpitters/plugins/` when it bumps a pin — the metadata
-      files and the compile references currently drift apart silently
-      (AmorLib sat at 1.2.1 while the manifest pinned 1.2.7 until Aug 2026).
 - [ ] Record / pin the ExtraWeaponCustomization version the compat layer is
       built against. `plugins/ExtraWeaponCustomization.dll` is 4.12.6 and that
       fact lives only in an `EWCCompat.cs` comment; the dependency script

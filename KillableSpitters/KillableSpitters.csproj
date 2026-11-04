@@ -54,11 +54,12 @@
     <Reference Remove="$(Interop)\netstandard.dll" />
     <Reference Remove="$(Interop)\Newtonsoft.Json.dll" />
 
-    <!-- Thunderstore Plugins -->
-    <!-- GTFO-API is its own Thunderstore package (BepInExPack_GTFO stopped
-         bundling it in 3.2.4); CI downloads it from the manifest dependencies -->
+    <!-- Thunderstore Plugins: pinned dependencies compile against the exact
+         versions CI downloads from manifest.json into deps/.
+         ExtraWeaponCustomization is a soft dependency absent from the
+         manifest, so its reference DLL stays checked in. -->
     <Reference Include="$(Deps)\GTFOModding-GTFO_API\plugins\GTFO-API.dll" Private="false" />
-    <Reference Include="$(Plugins)\AmorLib.dll" Private="false" />
+    <Reference Include="$(Deps)\Amorously-AmorLib\AmorLib.dll" Private="false" />
     <Reference Include="$(Plugins)\ExtraWeaponCustomization.dll" Private="false" />
   </ItemGroup>
 
