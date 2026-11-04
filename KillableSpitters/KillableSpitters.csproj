@@ -55,9 +55,9 @@
     <Reference Remove="$(Interop)\Newtonsoft.Json.dll" />
 
     <!-- Thunderstore Plugins -->
-    <!-- GTFO-API ships inside BepInExPack_GTFO, so reference that copy rather
-         than tracking our own -->
-    <Reference Include="$(BepInEx)\plugins\GTFO-API.dll" Private="false" />
+    <!-- GTFO-API is its own Thunderstore package (BepInExPack_GTFO stopped
+         bundling it in 3.2.4); CI downloads it from the manifest dependencies -->
+    <Reference Include="$(Deps)\GTFOModding-GTFO_API\plugins\GTFO-API.dll" Private="false" />
     <Reference Include="$(Plugins)\AmorLib.dll" Private="false" />
     <Reference Include="$(Plugins)\ExtraWeaponCustomization.dll" Private="false" />
   </ItemGroup>
